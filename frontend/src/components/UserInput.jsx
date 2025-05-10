@@ -1,42 +1,64 @@
+// components/UserInput.js
 import React, { useState } from 'react';
 
 const UserInput = ({ onSend, disabled }) => {
-  const [input, setInput] = useState('');
+  const [text, setText] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (input.trim()) {
-      onSend(input);
-      setInput('');
+    if (text.trim() && !disabled) {
+      onSend(text);
+      setText('');
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', margin: '15px 0' }}>
+    <form onSubmit={handleSubmit} style={{ 
+      marginBottom: '15px', 
+      display: 'flex',
+      alignItems: 'center',
+      position: 'relative'
+    }}>
       <input
         type="text"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        disabled={disabled}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
         placeholder="Type your answer..."
+        disabled={disabled}
         style={{
-          flexGrow: 1,
-          padding: '10px',
-          borderRadius: '4px',
-          border: '1px solid #ddd',
-          marginRight: '10px'
+          flex: 1,
+          padding: '14px 16px',
+          paddingRight: '100px', // Space for the button
+          fontSize: '16px',
+          borderRadius: '30px',
+          border: '1px solid #e0e0e0',
+          outline: 'none',
+          boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+          transition: 'all 0.3s ease',
+          ':focus': {
+            borderColor: '#1976d2',
+            boxShadow: '0 2px 8px rgba(25, 118, 210, 0.25)'
+          }
         }}
       />
       <button
         type="submit"
-        disabled={disabled || !input.trim()}
+        disabled={!text.trim() || disabled}
         style={{
-          padding: '10px 20px',
-          backgroundColor: '#2196f3',
+          position: 'absolute',
+          right: '4px',
+          top: '4px',
+          bottom: '4px',
+          padding: '0 20px',
+          backgroundColor: '#1976d2',
           color: 'white',
           border: 'none',
-          borderRadius: '4px',
-          cursor: disabled || !input.trim() ? 'not-allowed' : 'pointer'
+          borderRadius: '30px',
+          cursor: text.trim() && !disabled ? 'pointer' : 'not-allowed',
+          opacity: text.trim() && !disabled ? 1 : 0.7,
+          fontSize: '15px',
+          fontWeight: '500',
+          transition: 'all 0.2s ease'
         }}
       >
         Send

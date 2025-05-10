@@ -124,7 +124,7 @@ const CameraCapture = ({ onCapture, onClose }) => {
       left: 0,
       width: '100%',
       height: '100%',
-      backgroundColor: 'rgba(0, 0, 0, 0.9)',
+      backgroundColor: 'rgba(0, 0, 0, 0.95)',
       zIndex: 1000,
       display: 'flex',
       flexDirection: 'column',
@@ -133,18 +133,33 @@ const CameraCapture = ({ onCapture, onClose }) => {
       padding: '16px'
     }}>
       {errorMessage ? (
-        <div style={{ color: 'white', textAlign: 'center', padding: '20px' }}>
-          <p>{errorMessage}</p>
+        <div style={{ color: 'white', textAlign: 'center', padding: '20px', maxWidth: '400px' }}>
+          <div style={{ 
+            backgroundColor: 'rgba(244, 67, 54, 0.1)', 
+            padding: '20px',
+            borderRadius: '10px',
+            marginBottom: '20px',
+            border: '1px solid rgba(244, 67, 54, 0.3)'
+          }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#f44336" strokeWidth="2" style={{ marginBottom: '15px' }}>
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <p style={{ color: '#f44336', fontWeight: '500', fontSize: '18px' }}>Camera Error</p>
+            <p style={{ color: 'white' }}>{errorMessage}</p>
+          </div>
           <button 
             onClick={handleClose}
             style={{
-              padding: '10px 20px',
-              backgroundColor: '#f44336',
-              color: 'white',
+              padding: '12px 24px',
+              backgroundColor: 'white',
+              color: '#333',
               border: 'none',
-              borderRadius: '4px',
+              borderRadius: '30px',
               cursor: 'pointer',
-              margin: '10px'
+              fontSize: '16px',
+              fontWeight: '500'
             }}
           >
             Close
@@ -152,30 +167,48 @@ const CameraCapture = ({ onCapture, onClose }) => {
         </div>
       ) : capturedImage ? (
         // Show preview of captured image
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: '500px' }}>
           <div style={{ 
-            maxWidth: '100%', 
+            width: '100%',
             maxHeight: '70vh',
             overflow: 'hidden',
             marginBottom: '20px',
-            border: '2px solid white'
+            borderRadius: '10px',
+            boxShadow: '0 0 20px rgba(0,0,0,0.5)',
+            position: 'relative'
           }}>
             <img 
               src={capturedImage.url} 
               alt="Captured" 
-              style={{ maxWidth: '100%', maxHeight: '100%' }}
+              style={{ width: '100%', display: 'block' }}
             />
+            <div style={{
+              position: 'absolute',
+              top: '15px',
+              right: '15px',
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              color: 'white',
+              padding: '5px 10px',
+              borderRadius: '20px',
+              fontSize: '14px'
+            }}>
+              Preview
+            </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', width: '100%' }}>
             <button 
               onClick={retakePicture}
               style={{
-                padding: '10px 20px',
-                backgroundColor: '#f44336',
+                padding: '12px 24px',
+                backgroundColor: 'rgba(255,255,255,0.2)',
                 color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
+                border: '1px solid rgba(255,255,255,0.4)',
+                borderRadius: '30px',
+                cursor: 'pointer',
+                flex: 1,
+                maxWidth: '150px',
+                fontSize: '15px',
+                transition: 'all 0.2s ease'
               }}
             >
               Retake
@@ -183,12 +216,17 @@ const CameraCapture = ({ onCapture, onClose }) => {
             <button 
               onClick={confirmCapture}
               style={{
-                padding: '10px 20px',
+                padding: '12px 24px',
                 backgroundColor: '#4CAF50',
                 color: 'white',
                 border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
+                borderRadius: '30px',
+                cursor: 'pointer',
+                flex: 1,
+                maxWidth: '150px',
+                fontSize: '15px',
+                fontWeight: '500',
+                transition: 'all 0.2s ease'
               }}
             >
               Use Photo
@@ -207,26 +245,100 @@ const CameraCapture = ({ onCapture, onClose }) => {
           <div style={{ 
             width: '100%', 
             position: 'relative',
-            borderRadius: '8px',
+            borderRadius: '10px',
             overflow: 'hidden',
-            border: '2px solid white'
+            boxShadow: '0 0 20px rgba(0,0,0,0.5)',
+            backgroundColor: '#000'
           }}>
             <video 
               ref={videoRef}
               autoPlay 
               playsInline 
-              style={{ width: '100%', display: isCameraReady ? 'block' : 'none' }}
+              style={{ 
+                width: '100%', 
+                display: isCameraReady ? 'block' : 'none',
+                borderRadius: '10px'
+              }}
               onCanPlay={() => videoRef.current.play()}
             />
             <canvas ref={canvasRef} style={{ display: 'none' }} />
+            
+            {/* Camera overlay with focus guides */}
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              pointerEvents: 'none',
+              borderRadius: '10px',
+              border: '2px solid rgba(255,255,255,0.3)',
+              boxSizing: 'border-box'
+            }}>
+              <div style={{
+                position: 'absolute',
+                top: '15px',
+                left: '15px',
+                width: '50px',
+                height: '50px',
+                borderLeft: '2px solid rgba(255,255,255,0.6)',
+                borderTop: '2px solid rgba(255,255,255,0.6)',
+                borderRadius: '10px 0 0 0'
+              }} />
+              <div style={{
+                position: 'absolute',
+                top: '15px',
+                right: '15px',
+                width: '50px',
+                height: '50px',
+                borderRight: '2px solid rgba(255,255,255,0.6)',
+                borderTop: '2px solid rgba(255,255,255,0.6)',
+                borderRadius: '0 10px 0 0'
+              }} />
+              <div style={{
+                position: 'absolute',
+                bottom: '15px',
+                left: '15px',
+                width: '50px',
+                height: '50px',
+                borderLeft: '2px solid rgba(255,255,255,0.6)',
+                borderBottom: '2px solid rgba(255,255,255,0.6)',
+                borderRadius: '0 0 0 10px'
+              }} />
+              <div style={{
+                position: 'absolute',
+                bottom: '15px',
+                right: '15px',
+                width: '50px',
+                height: '50px',
+                borderRight: '2px solid rgba(255,255,255,0.6)',
+                borderBottom: '2px solid rgba(255,255,255,0.6)',
+                borderRadius: '0 0 10px 0'
+              }} />
+            </div>
+            
             {!isCameraReady && (
               <div style={{ 
-                padding: '40px', 
+                padding: '60px 20px', 
                 color: 'white', 
                 textAlign: 'center',
-                backgroundColor: '#333' 
               }}>
-                Loading camera...
+                <div className="loading-spinner" style={{
+                  width: '40px',
+                  height: '40px',
+                  margin: '0 auto 20px',
+                  border: '4px solid rgba(255,255,255,0.2)',
+                  borderRadius: '50%',
+                  borderTop: '4px solid white',
+                  animation: 'spin 1s linear infinite'
+                }}></div>
+                <style>{`
+                  @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                  }
+                `}</style>
+                Activating camera...
               </div>
             )}
           </div>
@@ -234,19 +346,21 @@ const CameraCapture = ({ onCapture, onClose }) => {
           <div style={{ 
             display: 'flex', 
             justifyContent: 'center', 
-            padding: '20px',
-            gap: '10px',
+            padding: '25px 0',
+            gap: '15px',
             width: '100%'
           }}>
             <button 
               onClick={handleClose}
               style={{
-                padding: '10px 20px',
-                backgroundColor: '#f44336',
+                padding: '12px 20px',
+                backgroundColor: 'rgba(255,255,255,0.2)',
                 color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
+                border: '1px solid rgba(255,255,255,0.4)',
+                borderRadius: '30px',
+                cursor: 'pointer',
+                fontSize: '15px',
+                minWidth: '90px'
               }}
             >
               Cancel
@@ -255,31 +369,48 @@ const CameraCapture = ({ onCapture, onClose }) => {
               onClick={takePicture}
               disabled={!isCameraReady}
               style={{
-                padding: '10px 20px',
-                backgroundColor: '#1976d2',
+                padding: '12px 20px',
+                backgroundColor: isCameraReady ? '#1976d2' : 'rgba(25, 118, 210, 0.3)',
                 color: 'white',
                 border: 'none',
-                borderRadius: '4px',
+                borderRadius: '30px',
                 cursor: isCameraReady ? 'pointer' : 'not-allowed',
-                opacity: isCameraReady ? 1 : 0.7
+                fontSize: '15px',
+                fontWeight: '500',
+                minWidth: '90px',
+                position: 'relative'
               }}
             >
-              Take Photo
+              <div style={{
+                width: '50px',
+                height: '50px',
+                borderRadius: '50%',
+                border: '3px solid white',
+                backgroundColor: isCameraReady ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)',
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                transform: 'translate(-50%, -50%)'
+              }}></div>
             </button>
             <button 
               onClick={switchCamera}
               disabled={!isCameraReady}
               style={{
-                padding: '10px',
-                backgroundColor: '#333',
+                padding: '12px 20px',
+                backgroundColor: 'rgba(0,0,0,0.4)',
                 color: 'white',
-                border: 'none',
-                borderRadius: '4px',
+                border: '1px solid rgba(255,255,255,0.3)',
+                borderRadius: '30px',
                 cursor: isCameraReady ? 'pointer' : 'not-allowed',
-                opacity: isCameraReady ? 1 : 0.7
+                fontSize: '15px',
+                minWidth: '90px',
+                opacity: isCameraReady ? 1 : 0.5
               }}
             >
-              <span role="img" aria-label="switch camera">🔄</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
             </button>
           </div>
         </div>

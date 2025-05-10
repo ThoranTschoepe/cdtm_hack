@@ -29,6 +29,28 @@ function App() {
     };
     
     setResponsiveMetaTag();
+    
+    // Add some global styles
+    const style = document.createElement('style');
+    style.textContent = `
+      body {
+        font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+        background-color: #fafafa;
+        color: #333;
+        line-height: 1.6;
+      }
+      
+      * {
+        box-sizing: border-box;
+      }
+      
+      #root {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+    `;
+    document.head.appendChild(style);
   }, []);
 
   // Initialize session
@@ -236,58 +258,119 @@ function App() {
     }
   };
 
+  // Calculate dynamic styling based on current state
+  const getMainContainerStyle = () => {
+    return {
+      maxWidth: '800px',
+      width: '100%',
+      margin: '0 auto',
+      padding: '20px',
+      display: 'flex',
+      flexDirection: 'column',
+      minHeight: '100vh',
+      backgroundColor: 'white',
+      boxShadow: '0 0 20px rgba(0,0,0,0.05)'
+    };
+  };
+
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px' }}>
+    <div style={getMainContainerStyle()}>
       <div style={{ 
         textAlign: 'center', 
-        marginBottom: '20px',
+        marginBottom: '30px',
         marginTop: '10px'
       }}>
         <img 
           src="/logo.png" 
           alt="Medimate" 
           style={{ 
-            maxWidth: '250px', 
-            width: '80%', // This makes it responsive
+            maxWidth: '150px', 
+            width: '60%',
             height: 'auto',
             objectFit: 'contain',
-            transition: 'all 0.3s ease' // Smooth resizing
+            transition: 'all 0.3s ease',
+            marginBottom: '10px'
           }} 
         />
       </div>
   
       <Chat messages={messages} latestAudioUrl={latestAudioUrl} />
   
-      {latestExtractedData && <ResultPreview extractedData={latestExtractedData} />}
+      {latestExtractedData && (
+        <div style={{ 
+          marginBottom: '20px', 
+          padding: '15px',
+          backgroundColor: '#f0f8ff',
+          borderRadius: '8px',
+          border: '1px solid #e0e0e0'
+        }}>
+          <ResultPreview extractedData={latestExtractedData} />
+        </div>
+      )}
   
       {!isDone ? (
         awaitingFollowup ? (
           <FileUpload onUpload={handleFileUpload} isMultiple={true} />
         ) : (
-          <>
+          <div style={{ marginTop: 'auto' }}>
             <UserInput onSend={handleSendMessage} disabled={isLoading} />
             <AudioRecorder onResponse={handleVoiceResponse} sessionId={sessionId} />
-          </>
+          </div>
         )
       ) : (
-        <button 
-          onClick={handleReset}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: '#f44336',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            margin: '20px 0'
-          }}
-        >
-          Start Over
-        </button>
+        <div style={{ 
+          display: 'flex',
+          justifyContent: 'center',
+          marginTop: '20px'
+        }}>
+          <button 
+            onClick={handleReset}
+            style={{
+              padding: '12px 24px',
+              backgroundColor: '#f44336',
+              color: 'white',
+              border: 'none',
+              borderRadius: '30px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            Start Over
+          </button>
+        </div>
       )}
   
       {isLoading && (
-        <div style={{ textAlign: 'center', margin: '10px 0' }}>
+        <div style={{ 
+          position: 'fixed',
+          bottom: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          color: 'white',
+          padding: '10px 20px',
+          borderRadius: '20px',
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
+        }}>
+          <div className="spinner" style={{
+            width: '20px',
+            height: '20px',
+            border: '3px solid rgba(255,255,255,0.3)',
+            borderRadius: '50%',
+            borderTop: '3px solid white',
+            animation: 'spin 1s linear infinite'
+          }}></div>
+          <style>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
           Processing...
         </div>
       )}
