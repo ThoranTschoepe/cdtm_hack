@@ -4,7 +4,6 @@ import UserInput from './components/UserInput';
 import FileUpload from './components/FileUpload';
 import ResultPreview from './components/ResultPreview';
 import AudioRecorder from './components/AudioRecorder'; 
-
 import api from './services/api';
 
 function App() {
@@ -15,7 +14,6 @@ function App() {
   const [latestExtractedData, setLatestExtractedData] = useState(null);
   const [latestAudioUrl, setLatestAudioUrl] = useState(null);
   const [isDone, setIsDone] = useState(false);
-  // Define the ref at the top level of the component
   const hasInitialized = useRef(false);
 
   // Initialize session
@@ -35,9 +33,11 @@ function App() {
         setAwaitingFollowup(questionData.awaiting_followup);
         setIsDone(questionData.done);
 
-        // 🔊 Play audio for the question
-        const audioUrl = await api.getNextQuestionAudio(session_id);
-        setLatestAudioUrl(audioUrl);
+        // Set audio URL directly from the response
+        if (questionData.audio_url) {
+          const fullAudioUrl = `http://localhost:8000${questionData.audio_url}`;
+          setLatestAudioUrl(fullAudioUrl);
+        }
       } catch (error) {
         console.error('Failed to initialize session:', error);
         setMessages([{ text: 'Failed to start the session. Please refresh the page.', isUser: false }]);
@@ -64,9 +64,11 @@ function App() {
       setAwaitingFollowup(response.awaiting_followup);
       setIsDone(response.done);
 
-      // 🔊 Fetch and play the audio response
-      const audioUrl = await api.getNextQuestionAudio(sessionId);
-      setLatestAudioUrl(audioUrl);
+      // Set audio URL directly from the response
+      if (response.audio_url) {
+        const fullAudioUrl = `http://localhost:8000${response.audio_url}`;
+        setLatestAudioUrl(fullAudioUrl);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       setMessages(prev => [...prev, { 
@@ -109,6 +111,12 @@ function App() {
       setMessages(prev => [...prev, { text: nextQuestion.message, isUser: false }]);
       setAwaitingFollowup(nextQuestion.awaiting_followup);
       setIsDone(nextQuestion.done);
+
+      // Set audio URL directly from the response
+      if (nextQuestion.audio_url) {
+        const fullAudioUrl = `http://localhost:8000${nextQuestion.audio_url}`;
+        setLatestAudioUrl(fullAudioUrl);
+      }
     } catch (error) {
       console.error('Error uploading files:', error);
       setMessages(prev => [...prev, { 
@@ -120,39 +128,44 @@ function App() {
     }
   };
 
+  // Handle voice response
+  const handleVoiceResponse = async (fileBlob) => {
+    setMessages(prev => [...prev, { text: '🎤 Voice input sent...', isUser: true }]);
+    setIsLoading(true);
 
-    // Handle text input submission
-const handleVoiceResponse = async (fileBlob) => {
-  setMessages(prev => [...prev, { text: '🎤 Voice input sent...', isUser: true }]);
-  setIsLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', fileBlob, 'recording.wav');
 
-  try {
-    const formData = new FormData();
-    formData.append('file', fileBlob, 'recording.wav');
+      const res = await fetch(`http://localhost:8000/answer_transcribe/${sessionId}`, {
+        method: 'POST',
+        body: formData,
+      });
 
-    const res = await fetch(`http://localhost:8000/answer_transcribe/${sessionId}`, {
-      method: 'POST',
-      body: formData,
-    });
+      const response = await res.json();
+      console.log("Voice response from backend:", response);
 
-    const response = await res.json();
-    console.log("Voice response from backend:", response);
+      const msgText = response.message || response.text || response || "🤖 No message";
+      setMessages(prev => [...prev, { text: msgText, isUser: false }]);
 
-    const msgText = response.message || response.text || response || "🤖 No message";
-    setMessages(prev => [...prev, { text: msgText, isUser: false }]);
+      setAwaitingFollowup(response.awaiting_followup);
+      setIsDone(response.done);
 
-    setAwaitingFollowup(response.awaiting_followup);
-    setIsDone(response.done);
-  } catch (error) {
-    console.error('Error processing voice input:', error);
-    setMessages(prev => [...prev, {
-      text: 'Something went wrong after transcribing audio.',
-      isUser: false,
-    }]);
-  } finally {
-    setIsLoading(false);
-  }
-};
+      // Set audio URL directly from the response
+      if (response.audio_url) {
+        const fullAudioUrl = `http://localhost:8000${response.audio_url}`;
+        setLatestAudioUrl(fullAudioUrl);
+      }
+    } catch (error) {
+      console.error('Error processing voice input:', error);
+      setMessages(prev => [...prev, {
+        text: 'Something went wrong after transcribing audio.',
+        isUser: false,
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Reset the session
   const handleReset = async () => {
@@ -173,6 +186,12 @@ const handleVoiceResponse = async (fileBlob) => {
       setAwaitingFollowup(questionData.awaiting_followup);
       setIsDone(questionData.done);
       setLatestExtractedData(null);
+      
+      // Set audio URL directly from the response
+      if (questionData.audio_url) {
+        const fullAudioUrl = `http://localhost:8000${questionData.audio_url}`;
+        setLatestAudioUrl(fullAudioUrl);
+      }
     } catch (error) {
       console.error('Error resetting session:', error);
     }
@@ -193,7 +212,6 @@ const handleVoiceResponse = async (fileBlob) => {
           <>
             <UserInput onSend={handleSendMessage} disabled={isLoading} />
             <AudioRecorder onResponse={handleVoiceResponse} sessionId={sessionId} />
-
           </>
         )
       ) : (

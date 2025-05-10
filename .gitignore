@@ -5,3 +5,4 @@ cdtm_hack/**
 frontend/node_modules/**
 
 **/uploads/**
+**/audio_cache/**

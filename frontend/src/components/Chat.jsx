@@ -1,58 +1,69 @@
-import React, { useEffect, useRef } from 'react';
-import Message from './Message';
+// components/Chat.js
+import React, { useRef, useEffect } from 'react';
+import AudioPlayer from './AudioPlayer';
 
 const Chat = ({ messages, latestAudioUrl }) => {
   const messagesEndRef = useRef(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
+  // Auto-scroll to the most recent message
   useEffect(() => {
-    scrollToBottom();
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '60vh',
-        overflowY: 'auto',
-        padding: '15px',
-        border: '1px solid #ddd',
-        borderRadius: '8px',
-        backgroundColor: '#fafafa'
-      }}
-    >
-      {messages.map((msg, index) => (
-        <Message key={index} message={msg.text} isUser={msg.isUser} />
-      ))}
-
-      {latestAudioUrl && (
-        <div style={{ textAlign: 'center', marginTop: '10px' }}>
-          <button
-            onClick={() => {
-              const audio = new Audio(latestAudioUrl);
-              audio.play().catch(e => {
-                console.warn("Playback failed:", e);
-              });
-            }}
+    <div className="chat-container" style={{ 
+      height: '400px', 
+      overflowY: 'auto',
+      border: '1px solid #ddd',
+      borderRadius: '8px',
+      padding: '16px',
+      marginBottom: '20px',
+      position: 'relative'
+    }}>
+      {/* AudioPlayer component handles autoplay */}
+      <AudioPlayer audioUrl={latestAudioUrl} autoPlay={true} />
+      
+      {messages.map((message, index) => (
+        <div 
+          key={index}
+          style={{
+            display: 'flex',
+            justifyContent: message.isUser ? 'flex-end' : 'flex-start',
+            marginBottom: '10px',
+            position: 'relative'
+          }}
+        >
+          {!message.isUser && index === messages.length - 1 && (
+            <div 
+              style={{
+                position: 'absolute',
+                top: '-2px',
+                left: '-2px',
+                fontSize: '16px',
+                opacity: '0.7'
+              }}
+              title="This message will be spoken"
+            >
+              🔊
+            </div>
+          )}
+          <div 
             style={{
-              padding: '8px 16px',
-              backgroundColor: '#4caf50',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '14px'
+              maxWidth: '70%',
+              padding: '10px 15px',
+              paddingLeft: !message.isUser && index === messages.length - 1 ? '25px' : '15px',
+              borderRadius: '18px',
+              backgroundColor: message.isUser ? '#1976d2' : '#f1f1f1',
+              color: message.isUser ? 'white' : 'black',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
             }}
           >
-            🔊 Replay Last Response
-          </button>
+            {message.text}
+          </div>
         </div>
-      )}
-
+      ))}
       <div ref={messagesEndRef} />
     </div>
   );

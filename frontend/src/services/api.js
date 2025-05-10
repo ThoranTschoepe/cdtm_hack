@@ -10,18 +10,29 @@ const api = {
     return response.data;
   },
 
-  // Get the next question
+  // Get the next question - now includes audio URL
   getNextQuestion: async (sessionId) => {
     const response = await axios.get(`${API_URL}/questions/${sessionId}`);
     return response.data;
   },
 
-
+  // Legacy method - kept for backward compatibility
   getNextQuestionAudio: async (sessionId) => {
-    const response = await fetch(`${API_URL}/questions-voice/${sessionId}`);
-    const blob = await response.blob();
-    return URL.createObjectURL(blob); // Returns blob URL to play
-  }, 
+    // This will now use the audio_url from the question response
+    // But we'll implement it in a backward-compatible way
+    try {
+      // First try to get the JSON response which includes the audio URL
+      const response = await axios.get(`${API_URL}/questions/${sessionId}`);
+      // If we have an audio_url, use it
+      if (response.data.audio_url) {
+        const audioResponse = await fetch(`${API_URL}${response.data.audio_url}`);
+        const blob = await audioResponse.blob();
+        return URL.createObjectURL(blob);
+      }
+    } catch (error) {
+      console.warn("Error:", error);
+    }
+  },
 
   // Submit an answer
   submitAnswer: async (sessionId, answer) => {
@@ -35,7 +46,6 @@ const api = {
   uploadDocument: async (sessionId, file) => {
     const formData = new FormData();
     formData.append('file', file);
-
     const response = await axios.post(
       `${API_URL}/document-single/${sessionId}`,
       formData,
@@ -45,7 +55,6 @@ const api = {
         }
       }
     );
-
     return response.data;
   },
 
@@ -78,7 +87,6 @@ const api = {
         }
       }
     );
-
     return response.data;
   },
 
