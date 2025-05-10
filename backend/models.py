@@ -33,6 +33,7 @@ class ExtractedDocument(BaseModel):
     filename: str
     document_types: List[str]
     data: Dict[str, Any]
+    category: Optional[str] = None
 
 class OnboardingState(BaseModel):
     id: str
@@ -45,13 +46,32 @@ class OnboardingState(BaseModel):
     # New fields for enhanced agent functionality
     needs_clarification: bool = False
     last_answer: Optional[str] = None
+    
+    # User info fields
+    patient_info: Dict[str, Any] = Field(default_factory=dict)
+    symptoms_info: Dict[str, Any] = Field(default_factory=dict)
+    
+    # Category-based approach fields
+    category_states: Dict[str, str] = Field(default_factory=lambda: {
+        "current_symptoms": "not_started",
+        "insurance": "not_started",
+        "medication": "not_started", 
+        "health_record": "not_started"
+    })
+    current_category: str = "current_symptoms"
+    document_count: Dict[str, int] = Field(default_factory=lambda: {
+        "current_symptoms": 0,
+        "insurance": 0,
+        "medication": 0, 
+        "health_record": 0
+    })
 
 class QuestionResponse(BaseModel):
     message: str
     awaiting_followup: bool
     done: bool
     current_question_index: int
-    extracted_data_preview: Optional[Dict[str, Any]] = None
+    extracted_data: Optional[Dict[str, Any]] = None
 
 class DocumentProcessResponse(BaseModel):
     success: bool

@@ -6,6 +6,7 @@ from typing import Optional, List, Literal, Dict, Any, Union
 import json
 from collections import defaultdict
 from schemas import schema_map
+import io
 
 # Original document types remain the same
 DocumentType = Literal[
@@ -395,6 +396,7 @@ class MultiDocumentProcessor:
                     'quality_issues': quality_issues
                 })
             except Exception as e:
+                print(f"Error categorizing page {page_num}: {str(e)}")
                 page_categories.append({
                     'page_number': page_num,
                     'doc_type': "unknown",
