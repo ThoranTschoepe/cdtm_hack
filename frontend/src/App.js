@@ -238,7 +238,23 @@ function App() {
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px' }}>
-      <h1>Medical Onboarding Assistant</h1>
+      <div style={{ 
+        textAlign: 'center', 
+        marginBottom: '20px',
+        marginTop: '10px'
+      }}>
+        <img 
+          src="/logo.png" 
+          alt="Medimate" 
+          style={{ 
+            maxWidth: '250px', 
+            width: '80%', // This makes it responsive
+            height: 'auto',
+            objectFit: 'contain',
+            transition: 'all 0.3s ease' // Smooth resizing
+          }} 
+        />
+      </div>
   
       <Chat messages={messages} latestAudioUrl={latestAudioUrl} />
   
