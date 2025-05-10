@@ -16,6 +16,13 @@ const api = {
     return response.data;
   },
 
+
+  getNextQuestionAudio: async (sessionId) => {
+    const response = await fetch(`${API_URL}/questions-voice/${sessionId}`);
+    const blob = await response.blob();
+    return URL.createObjectURL(blob); // Returns blob URL to play
+  }, 
+
   // Submit an answer
   submitAnswer: async (sessionId, answer) => {
     const response = await axios.post(`${API_URL}/answer/${sessionId}`, {
