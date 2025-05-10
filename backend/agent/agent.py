@@ -57,6 +57,7 @@ def chat():
     done = False
 
     if request.method == "POST":
+        # We upload a picture
         if state["awaiting_followup"]:
             file = request.files.get("file")
             if file and file.filename != "":
@@ -67,7 +68,6 @@ def chat():
             else:
                 updateState(state, state["last_question"], "yes", None)
             state["awaiting_followup"] = False
-            state["current_q_index"] += 1
         else:
             user_input = request.form.get("user_input", "")
             current_q = questions[state["current_q_index"]]
