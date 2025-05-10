@@ -81,7 +81,7 @@ function App() {
     // Show message about uploading multiple files
     const fileNames = fileArray.map(file => file.name).join(', ');
     setMessages(prev => [...prev, { 
-      text: `Uploading ${fileArray.length} file(s): ${fileNames}`, 
+      text: `Uploading ${fileArray.length} file(s)`, 
       isUser: true 
     }]);
 
@@ -92,7 +92,7 @@ function App() {
       setLatestExtractedData(response.extracted_data);
       
       setMessages(prev => [...prev, { 
-        text: `Files processed successfully: ${response.filename}`, 
+        text: `${fileArray.length} File(s) processed successfully.`, 
         isUser: false 
       }]);
 
