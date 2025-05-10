@@ -36,7 +36,7 @@ function App() {
         setIsDone(questionData.done);
 
         // 🔊 Play audio for the question
-        const audioUrl = await api.getNextQuestionAudio(sessionId);
+        const audioUrl = await api.getNextQuestionAudio(session_id);
         setLatestAudioUrl(audioUrl);
       } catch (error) {
         console.error('Failed to initialize session:', error);
@@ -88,7 +88,6 @@ function App() {
     const fileArray = Array.isArray(files) ? files : [files];
     
     // Show message about uploading multiple files
-    const fileNames = fileArray.map(file => file.name).join(', ');
     setMessages(prev => [...prev, { 
       text: `Uploading ${fileArray.length} file(s)`, 
       isUser: true 
