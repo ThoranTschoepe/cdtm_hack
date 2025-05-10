@@ -1,19 +1,25 @@
-import React, { useState } from 'react';
+// components/FileUpload.js
+import React, { useState, useRef } from 'react';
+import CameraCapture from './CameraCapture';
 
 const FileUpload = ({ onUpload, isMultiple = false }) => {
-  const [selectedFiles, setSelectedFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [files, setFiles] = useState([]);
+  const [showCamera, setShowCamera] = useState(false);
+  const fileInputRef = useRef(null);
+  
+  // Check if camera is available
+  const [isCameraAvailable, setIsCameraAvailable] = useState(false);
+  
+  React.useEffect(() => {
+    // Check if the browser supports getUserMedia
+    setIsCameraAvailable(
+      !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+    );
+  }, []);
 
-  const handleFileChange = (event) => {
-    if (event.target.files && event.target.files.length > 0) {
-      // Convert FileList to Array
-      const filesArray = Array.from(event.target.files);
-      setSelectedFiles(filesArray);
-    }
-  };
-
-  const handleDragOver = (event) => {
-    event.preventDefault();
+  const handleDragOver = (e) => {
+    e.preventDefault();
     setIsDragging(true);
   };
 
@@ -21,130 +27,205 @@ const FileUpload = ({ onUpload, isMultiple = false }) => {
     setIsDragging(false);
   };
 
-  const handleDrop = (event) => {
-    event.preventDefault();
+  const handleDrop = (e) => {
+    e.preventDefault();
     setIsDragging(false);
     
-    if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
-      // Convert FileList to Array
-      const filesArray = Array.from(event.dataTransfer.files);
-      
-      // Filter to only image files
-      const imageFiles = filesArray.filter(file => 
-        file.type.startsWith('image/') || file.type === 'application/pdf'
-      );
-      
-      if (imageFiles.length === 0) {
-        alert('Please upload image or PDF files only.');
-        return;
-      }
-      
-      setSelectedFiles(imageFiles);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFiles(e.dataTransfer.files);
     }
   };
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
+  const handleFileInputChange = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFiles(e.target.files);
+    }
+  };
+
+  const handleFiles = (fileList) => {
+    const newFiles = [...files];
     
-    if (selectedFiles.length === 0) {
-      alert('Please select at least one file to upload.');
-      return;
+    for (let i = 0; i < fileList.length; i++) {
+      newFiles.push(fileList[i]);
     }
     
-    // Pass all files to the onUpload handler
-    // If isMultiple is false, just pass the first file for backward compatibility
-    if (isMultiple) {
-      onUpload(selectedFiles);
-    } else {
-      onUpload(selectedFiles[0]);
+    setFiles(newFiles);
+  };
+
+  const handleCameraCapture = (file) => {
+    const newFiles = [...files, file];
+    setFiles(newFiles);
+    setShowCamera(false);
+  };
+
+  const removeFile = (index) => {
+    const newFiles = [...files];
+    newFiles.splice(index, 1);
+    setFiles(newFiles);
+  };
+
+  const handleUpload = () => {
+    if (files.length > 0) {
+      onUpload(isMultiple ? files : files[0]);
+      setFiles([]);
     }
-    
-    // Clear selection after upload
-    setSelectedFiles([]);
   };
 
   const handleSkip = () => {
-    // Call onUpload with "skip" to indicate user is skipping
     onUpload("skip");
   };
 
   return (
-    <div style={{ margin: '20px 0' }}>
-      <form onSubmit={handleSubmit}>
-        <div 
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          style={{
-            border: `2px dashed ${isDragging ? '#2196F3' : '#ccc'}`,
-            borderRadius: '4px',
-            padding: '20px',
-            textAlign: 'center',
-            backgroundColor: isDragging ? '#f0f8ff' : '#f9f9f9',
-            cursor: 'pointer',
-            transition: 'all 0.3s ease'
-          }}
-        >
-          <input
-            type="file"
-            onChange={handleFileChange}
-            multiple={isMultiple}
-            accept="image/*,application/pdf"
-            style={{ display: 'none' }}
-            id="file-input"
-          />
-          <label htmlFor="file-input" style={{ cursor: 'pointer', display: 'block' }}>
-            {isDragging
-              ? 'Drop files here'
-              : 'Drag and drop files here or click to browse'}
-          </label>
-          
-          {selectedFiles.length > 0 && (
-            <div style={{ marginTop: '15px', textAlign: 'left' }}>
-              <h4>Selected Files:</h4>
-              <ul style={{ paddingLeft: '20px' }}>
-                {selectedFiles.map((file, index) => (
-                  <li key={index}>
-                    {file.name} ({(file.size / 1024).toFixed(2)} KB)
+    <div className="file-upload-container" style={{ marginBottom: '20px' }}>
+      {showCamera ? (
+        <CameraCapture
+          onCapture={handleCameraCapture}
+          onClose={() => setShowCamera(false)}
+        />
+      ) : (
+        <>
+          <div
+            className={`drop-area ${isDragging ? 'dragging' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current.click()}
+            style={{
+              border: `2px dashed ${isDragging ? '#1976d2' : '#ccc'}`,
+              borderRadius: '8px',
+              padding: '30px',
+              textAlign: 'center',
+              cursor: 'pointer',
+              marginBottom: '15px',
+              backgroundColor: isDragging ? 'rgba(25, 118, 210, 0.05)' : 'transparent',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileInputChange}
+              multiple={isMultiple}
+              accept="image/*,.pdf"
+              style={{ display: 'none' }}
+            />
+            <p style={{ margin: '0 0 10px 0' }}>
+              Drag & drop files here or click to browse
+            </p>
+            <span style={{ 
+              fontSize: '40px', 
+              display: 'block', 
+              marginBottom: '10px' 
+            }}>
+              📄
+            </span>
+            <p style={{ margin: '0', color: '#666', fontSize: '0.9em' }}>
+              {isMultiple ? 'You can upload multiple files' : 'Please upload a single file'}
+            </p>
+          </div>
+
+          {/* Camera capture button */}
+          {isCameraAvailable && (
+            <div className="camera-option" style={{
+              display: 'flex',
+              justifyContent: 'center',
+              marginBottom: '15px'
+            }}>
+              <button
+                onClick={() => setShowCamera(true)}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#009688',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <span role="img" aria-label="camera">📷</span>
+                Take Photo with Camera
+              </button>
+            </div>
+          )}
+
+          {/* File list */}
+          {files.length > 0 && (
+            <div className="file-list" style={{ marginBottom: '15px' }}>
+              <h3 style={{ fontSize: '1rem', marginBottom: '10px' }}>Selected Files:</h3>
+              <ul style={{ 
+                listStyle: 'none', 
+                padding: '0',
+                margin: '0 0 15px 0',
+                maxHeight: '200px',
+                overflowY: 'auto',
+                border: '1px solid #eee',
+                borderRadius: '4px',
+                padding: '10px'
+              }}>
+                {files.map((file, index) => (
+                  <li key={index} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px',
+                    borderBottom: index < files.length - 1 ? '1px solid #eee' : 'none'
+                  }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {file.name}
+                    </span>
+                    <button 
+                      onClick={() => removeFile(index)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#f44336',
+                        cursor: 'pointer',
+                        fontSize: '1.1rem'
+                      }}
+                    >
+                      ✕
+                    </button>
                   </li>
                 ))}
               </ul>
+              <button
+                onClick={handleUpload}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  width: '100%'
+                }}
+              >
+                Upload {files.length} {files.length === 1 ? 'File' : 'Files'}
+              </button>
             </div>
           )}
-        </div>
-        
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px' }}>
-          <button
-            type="submit"
-            disabled={selectedFiles.length === 0}
-            style={{
-              padding: '10px 15px',
-              backgroundColor: selectedFiles.length === 0 ? '#cccccc' : '#4CAF50',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: selectedFiles.length === 0 ? 'not-allowed' : 'pointer'
-            }}
-          >
-            {selectedFiles.length > 1 ? 'Upload Files' : 'Upload File'}
-          </button>
-          
-          <button
-            type="button"
-            onClick={handleSkip}
-            style={{
-              padding: '10px 15px',
-              backgroundColor: '#9e9e9e',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-            Skip
-          </button>
-        </div>
-      </form>
+
+          {/* Skip button */}
+          <div style={{ textAlign: 'center', marginTop: '10px' }}>
+            <button
+              onClick={handleSkip}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: 'transparent',
+                color: '#666',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Skip Document Upload
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 };

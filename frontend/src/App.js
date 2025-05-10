@@ -16,6 +16,21 @@ function App() {
   const [isDone, setIsDone] = useState(false);
   const hasInitialized = useRef(false);
 
+  // Mobile viewport adjustment for camera usage
+  useEffect(() => {
+    const setResponsiveMetaTag = () => {
+      let metaViewport = document.querySelector('meta[name="viewport"]');
+      if (!metaViewport) {
+        metaViewport = document.createElement('meta');
+        metaViewport.name = 'viewport';
+        document.head.appendChild(metaViewport);
+      }
+      metaViewport.content = 'width=device-width, initial-scale=1, maximum-scale=1';
+    };
+    
+    setResponsiveMetaTag();
+  }, []);
+
   // Initialize session
   useEffect(() => {
     const initializeSession = async () => {
@@ -85,6 +100,30 @@ function App() {
     if (!sessionId || isLoading) return;
 
     setIsLoading(true);
+    
+    if (files === "skip") {
+      try {
+        const response = await api.submitAnswer(sessionId, "skip");
+        setMessages(prev => [...prev, { text: response.message, isUser: false }]);
+        setAwaitingFollowup(response.awaiting_followup);
+        setIsDone(response.done);
+        
+        // Set audio URL directly from the response
+        if (response.audio_url) {
+          const fullAudioUrl = `http://localhost:8000${response.audio_url}`;
+          setLatestAudioUrl(fullAudioUrl);
+        }
+      } catch (error) {
+        console.error('Error skipping document upload:', error);
+        setMessages(prev => [...prev, { 
+          text: 'An error occurred while processing your request.', 
+          isUser: false 
+        }]);
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
     
     // If single file is passed, convert to array
     const fileArray = Array.isArray(files) ? files : [files];
