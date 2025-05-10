@@ -181,14 +181,21 @@ async def process_document(session_id: str, files: List[UploadFile] = File(...))
                 filenames.append(filename)
         
         # Let the agent process all documents at once
-        response = agent.process_documents(state, image_bytes_list, filenames)
+        doc_response = agent.process_documents(state, image_bytes_list, filenames)
         
-        # Generate audio for the response
-        audio_url = generate_audio_file(response.message)
+        # Get the next question to provide a message
+        question_response = agent.get_next_question(state)
         
-        # Create enhanced response with audio URL
+        # Generate audio for the question response message
+        audio_url = generate_audio_file(question_response.message)
+        
+        # Create enhanced response with audio URL and document data
         enhanced_response = EnhancedQuestionResponse(
-            **response.model_dump(),
+            message=question_response.message,
+            awaiting_followup=question_response.awaiting_followup,
+            done=question_response.done,
+            current_question_index=question_response.current_question_index,
+            extracted_data=doc_response.extracted_data,
             audio_url=audio_url
         )
         
@@ -197,6 +204,10 @@ async def process_document(session_id: str, files: List[UploadFile] = File(...))
         return enhanced_response
     
     except Exception as e:
+        # Add better error logging
+        import traceback
+        print(f"Error processing documents: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Error processing documents: {str(e)}")
 
 @app.get("/state/{session_id}")
