@@ -17,10 +17,8 @@ const api = {
   
   // Submit text answer
   submitAnswer: async (sessionId, answer) => {
-    const response = await axios.post(`${API_URL}/answer/${sessionId}`, answer, {
-      headers: {
-        'Content-Type': 'text/plain'
-      }
+    const response = await axios.post(`${API_URL}/answer/${sessionId}`, {
+      answer: answer
     });
     return response.data;
   },

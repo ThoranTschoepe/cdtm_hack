@@ -2,6 +2,7 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi import Body
 import uuid
 import os
 from typing import Dict, List, Optional
@@ -140,8 +141,13 @@ async def get_next_question(session_id: str):
         extracted_data_preview=None
     )
 
+class AnswerRequest(BaseModel):
+    answer: str
+
+
 @app.post("/answer/{session_id}")
-async def submit_answer(session_id: str, answer: str):
+async def submit_answer(session_id: str, request: AnswerRequest):
+    answer = request.answer
     """Submit an answer to the current question"""
     state = get_session(session_id)
     message = ""
