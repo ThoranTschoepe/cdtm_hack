@@ -1,0 +1,3 @@
+pip install --upgrade google-genai
+gcloud auth application-default login
+gcloud auth application-default set-quota-project avi-cdtm-hack-team-9800
