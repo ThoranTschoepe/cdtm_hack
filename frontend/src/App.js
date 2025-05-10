@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Chat from './components/Chat';
 import UserInput from './components/UserInput';
 import FileUpload from './components/FileUpload';
@@ -12,10 +12,16 @@ function App() {
   const [awaitingFollowup, setAwaitingFollowup] = useState(false);
   const [latestExtractedData, setLatestExtractedData] = useState(null);
   const [isDone, setIsDone] = useState(false);
+  // Define the ref at the top level of the component
+  const hasInitialized = useRef(false);
 
   // Initialize session
   useEffect(() => {
     const initializeSession = async () => {
+      // Skip if already initialized
+      if (hasInitialized.current) return;
+      hasInitialized.current = true;
+      
       try {
         setIsLoading(true);
         const { session_id } = await api.createSession();
