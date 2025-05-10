@@ -13,6 +13,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [awaitingFollowup, setAwaitingFollowup] = useState(false);
   const [latestExtractedData, setLatestExtractedData] = useState(null);
+  const [latestAudioUrl, setLatestAudioUrl] = useState(null);
   const [isDone, setIsDone] = useState(false);
   // Define the ref at the top level of the component
   const hasInitialized = useRef(false);
@@ -33,6 +34,10 @@ function App() {
         setMessages([{ text: questionData.message, isUser: false }]);
         setAwaitingFollowup(questionData.awaiting_followup);
         setIsDone(questionData.done);
+
+        // 🔊 Play audio for the question
+        const audioUrl = await api.getNextQuestionAudio(sessionId);
+        setLatestAudioUrl(audioUrl);
       } catch (error) {
         console.error('Failed to initialize session:', error);
         setMessages([{ text: 'Failed to start the session. Please refresh the page.', isUser: false }]);
@@ -58,6 +63,10 @@ function App() {
       setMessages(prev => [...prev, { text: response.message, isUser: false }]);
       setAwaitingFollowup(response.awaiting_followup);
       setIsDone(response.done);
+
+      // 🔊 Fetch and play the audio response
+      const audioUrl = await api.getNextQuestionAudio(sessionId);
+      setLatestAudioUrl(audioUrl);
     } catch (error) {
       console.error('Error sending message:', error);
       setMessages(prev => [...prev, { 
@@ -140,7 +149,7 @@ function App() {
     <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px' }}>
       <h1>Medical Onboarding Assistant</h1>
   
-      <Chat messages={messages} />
+      <Chat messages={messages} latestAudioUrl={latestAudioUrl} />
   
       {latestExtractedData && <ResultPreview extractedData={latestExtractedData} />}
   

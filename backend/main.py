@@ -9,7 +9,8 @@ from pydantic import BaseModel
 from models import OnboardingState, QuestionResponse, DocumentProcessResponse
 from document_processor import MultiDocumentProcessor
 from onboarding_agent import OnboardingAgent # Import the new agent
-
+from fastapi.responses import StreamingResponse
+from voice.llm import synthesize_speech
 app = FastAPI(title="Medical Onboarding API")
 
 # Configure CORS for frontend
@@ -58,6 +59,19 @@ async def get_next_question(session_id: str):
     # Let the agent determine the next question/message
     response = agent.get_next_question(state)
     return response
+
+
+@app.get("/questions-voice/{session_id}")
+async def get_next_question(session_id: str):
+    """Get the next question as audio using OpenAI TTS"""
+    state = get_session(session_id)
+    response = agent.get_next_question(state)
+
+    text = response.message
+    audio_stream = synthesize_speech(text)
+
+    return StreamingResponse(audio_stream, media_type="audio/mpeg")
+
 
 @app.post("/answer/{session_id}")
 async def submit_answer(session_id: str, request: AnswerRequest):

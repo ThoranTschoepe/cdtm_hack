@@ -10,6 +10,22 @@ import io
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+def synthesize_speech(text: str, voice: str = "alloy") -> io.BytesIO:
+    """Generate speech audio from text using OpenAI and return audio as BytesIO stream."""
+    response = client.audio.speech.create(
+        model="tts-1",
+        voice=voice,
+        input=text
+    )
+
+    audio_stream = io.BytesIO()
+    for chunk in response.iter_bytes():
+        audio_stream.write(chunk)
+    audio_stream.seek(0)
+
+    return audio_stream
+
+
 def transcribe_audio_file(upload_file):
     """Transcribe an audio UploadFile using OpenAI Whisper, converting to MP3 if needed."""
     filename = f"{uuid.uuid4()}_{upload_file.filename}"
