@@ -1,3 +1,4 @@
+// services/api.js
 import axios from 'axios';
 
 const API_URL = 'http://localhost:8000';
@@ -8,43 +9,81 @@ const api = {
     const response = await axios.post(`${API_URL}/session`);
     return response.data;
   },
-  
-  // Get next question
+
+  // Get the next question
   getNextQuestion: async (sessionId) => {
     const response = await axios.get(`${API_URL}/questions/${sessionId}`);
     return response.data;
   },
-  
-  // Submit text answer
+
+  // Submit an answer
   submitAnswer: async (sessionId, answer) => {
     const response = await axios.post(`${API_URL}/answer/${sessionId}`, {
-      answer: answer
+      answer
     });
     return response.data;
   },
-  
-  // Upload document
+
+  // Upload a single document (for backward compatibility)
   uploadDocument: async (sessionId, file) => {
     const formData = new FormData();
     formData.append('file', file);
-    
-    const response = await axios.post(`${API_URL}/document/${sessionId}`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
+
+    const response = await axios.post(
+      `${API_URL}/document-single/${sessionId}`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
       }
-    });
+    );
+
     return response.data;
   },
-  
-  // Get current session state
-  getSessionState: async (sessionId) => {
-    const response = await axios.get(`${API_URL}/state/${sessionId}`);
+
+  // Upload multiple documents
+  uploadDocuments: async (sessionId, files) => {
+    // If "skip" is passed, submit the skip answer
+    if (files === "skip") {
+      return await api.submitAnswer(sessionId, "skip");
+    }
+
+    const formData = new FormData();
+    
+    // Handle single file or array of files
+    if (Array.isArray(files)) {
+      // Append each file to the form data with the same field name
+      files.forEach(file => {
+        formData.append('files', file);
+      });
+    } else {
+      // If a single file is passed, append it
+      formData.append('files', files);
+    }
+
+    const response = await axios.post(
+      `${API_URL}/document/${sessionId}`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    );
+
     return response.data;
   },
-  
-  // Reset session
+
+  // Reset a session
   resetSession: async (sessionId) => {
     const response = await axios.delete(`${API_URL}/session/${sessionId}`);
+    return response.data;
+  },
+
+  // Get current session state (for debugging)
+  getSessionState: async (sessionId) => {
+    const response = await axios.get(`${API_URL}/state/${sessionId}`);
     return response.data;
   }
 };
