@@ -9,6 +9,7 @@ from collections import defaultdict
 # Original document types remain the same
 DocumentType = Literal[
     "DoctorLetter", 
+    "HospitalLetter",
     "LabReport", 
     "MedicationBox", 
     "MedicationDescription", 
@@ -21,6 +22,7 @@ DocumentType = Literal[
 
 DOCUMENT_TYPES = [
     "DoctorLetter", 
+    "HospitalLetter",
     "LabReport", 
     "MedicationBox", 
     "MedicationDescription", 
@@ -123,6 +125,200 @@ class AgentOCR:
                 "interpretation": {"type": "STRING", "nullable": True}
             },
             "required": ["patient_information", "test_results"]
+        }
+
+        self.hospital_letter_schema = {
+            "type": "OBJECT",
+            "properties": {
+                "letter_metadata": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "hospital_name": {"type": "STRING"},
+                        "hospital_department": {"type": "STRING", "nullable": True},
+                        "hospital_address": {"type": "STRING", "nullable": True},
+                        "document_type": {"type": "STRING", "nullable": True},
+                        "date": {"type": "STRING"},
+                        "case_number": {"type": "STRING", "nullable": True},
+                    },
+                    "required": ["date"]
+                },
+                "patient_information": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "name": {"type": "STRING"},
+                        "id": {"type": "STRING", "nullable": True},
+                        "date_of_birth": {"type": "STRING", "nullable": True},
+                        "gender": {"type": "STRING", "nullable": True},
+                        "address": {"type": "STRING", "nullable": True},
+                        "insurance_info": {"type": "STRING", "nullable": True},
+                        "anthropometrics": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "height": {"type": "STRING", "nullable": True},
+                                "weight": {"type": "STRING", "nullable": True},
+                                "bmi": {"type": "STRING", "nullable": True}
+                            }
+                        }
+                    },
+                    "required": ["name"]
+                },
+                "referring_physician": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "name": {"type": "STRING", "nullable": True},
+                        "practice_name": {"type": "STRING", "nullable": True},
+                        "address": {"type": "STRING", "nullable": True},
+                        "contact_info": {"type": "STRING", "nullable": True}
+                    }
+                },
+                "admission_details": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "admission_date": {"type": "STRING", "nullable": True},
+                        "discharge_date": {"type": "STRING", "nullable": True},
+                        "reason_for_admission": {"type": "STRING", "nullable": True},
+                        "department": {"type": "STRING", "nullable": True}
+                    }
+                },
+                "anamnesis": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "chief_complaint": {"type": "STRING", "nullable": True},
+                        "present_illness": {"type": "STRING", "nullable": True},
+                        "past_medical_history": {"type": "STRING", "nullable": True},
+                        "family_history": {"type": "STRING", "nullable": True},
+                        "social_history": {"type": "STRING", "nullable": True},
+                        "allergies": {"type": "STRING", "nullable": True},
+                        "medications": {"type": "STRING", "nullable": True},
+                        "risk_factors": {"type": "STRING", "nullable": True}
+                    }
+                },
+                "physical_examination": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "general_appearance": {"type": "STRING", "nullable": True},
+                        "vital_signs": {"type": "STRING", "nullable": True},
+                        "systems_review": {"type": "STRING", "nullable": True}
+                    }
+                },
+                "diagnostic_findings": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "laboratory_results": {"type": "STRING", "nullable": True},
+                        "imaging_results": {"type": "STRING", "nullable": True},
+                        "ecg_findings": {"type": "STRING", "nullable": True},
+                        "other_tests": {"type": "STRING", "nullable": True}
+                    }
+                },
+                "procedures": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "procedure_name": {"type": "STRING"},
+                            "procedure_date": {"type": "STRING", "nullable": True},
+                            "findings": {"type": "STRING", "nullable": True},
+                            "complications": {"type": "STRING", "nullable": True}
+                        },
+                        "required": ["procedure_name"]
+                    }
+                },
+                "diagnoses": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "diagnosis": {"type": "STRING"},
+                            "code": {"type": "STRING", "nullable": True},
+                            "details": {"type": "STRING", "nullable": True}
+                        },
+                        "required": ["diagnosis"]
+                    }
+                },
+                "treatment": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "medications_prescribed": {"type": "STRING", "nullable": True},
+                        "procedures_performed": {"type": "STRING", "nullable": True},
+                        "other_treatments": {"type": "STRING", "nullable": True}
+                    }
+                },
+                "discharge_plan": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "follow_up_instructions": {"type": "STRING", "nullable": True},
+                        "activity_restrictions": {"type": "STRING", "nullable": True},
+                        "diet_recommendations": {"type": "STRING", "nullable": True},
+                        "medication_instructions": {"type": "STRING", "nullable": True},
+                        "follow_up_appointments": {"type": "STRING", "nullable": True}
+                    }
+                },
+                "recommendations": {"type": "STRING", "nullable": True},
+                "summary": {"type": "STRING", "nullable": True},
+                "signature": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "physician_name": {"type": "STRING", "nullable": True},
+                        "credentials": {"type": "STRING", "nullable": True},
+                        "date": {"type": "STRING", "nullable": True}
+                    }
+                },
+                "contact_information": {"type": "STRING", "nullable": True}
+            },
+            "required": ["patient_information"]
+        }
+
+        self.insurance_card_schema = {
+            "type": "OBJECT",
+            "properties": {
+                "card_details": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "insurance_provider": {"type": "STRING"},
+                        "card_number": {"type": "STRING", "nullable": True}
+                    },
+                    "required": ["insurance_provider"]
+                },
+                "policyholder": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "name": {"type": "STRING"},
+                        "date_of_birth": {"type": "STRING", "nullable": True},
+                        "insurance_number": {"type": "STRING", "nullable": True},
+                        "company_number": {"type": "STRING", "nullable": True},
+                        "person_number": {"type": "STRING", "nullable": True}
+                    },
+                    "required": ["name"]
+                },
+                "coverage": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "plan_type": {"type": "STRING", "nullable": True},
+                        "hospital_services": {"type": "STRING", "nullable": True},
+                        "room_type": {"type": "STRING", "nullable": True},
+                        "coverage_percentages": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "general_hospital_services": {"type": "STRING", "nullable": True},
+                                "double_room_supplement": {"type": "STRING", "nullable": True},
+                                "single_room_supplement": {"type": "STRING", "nullable": True},
+                                "additional_supplements": {"type": "STRING", "nullable": True}
+                            }
+                        }
+                    }
+                },
+                "contact_information": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "address": {"type": "STRING", "nullable": True},
+                        "phone": {"type": "STRING", "nullable": True},
+                        "email": {"type": "STRING", "nullable": True},
+                        "website": {"type": "STRING", "nullable": True},
+                        "emergency_contact": {"type": "STRING", "nullable": True}
+                    }
+                },
+            },
+            "required": ["card_details", "policyholder"]
         }
 
         # Doctor Letter Schema
@@ -374,13 +570,15 @@ class AgentOCR:
 
         # Map document types to their schemas
         self.schema_map = {
-            "LabReport": self.lab_report_schema,
             "DoctorLetter": self.doctor_letter_schema,
+            "HospitalLetter": self.hospital_letter_schema,
+            "LabReport": self.lab_report_schema,
             "MedicationBox": self.medication_box_schema,
+            "InsuranceCard": self.insurance_card_schema,
             "MedicationDescription": self.medication_description_schema,
+            "VaccinationPass": self.vaccination_pass_schema,
             "MedicationPlan": self.medication_plan_schema,
             "Prescription": self.prescription_schema,
-            "VaccinationPass": self.vaccination_pass_schema,
             # Add other document type schemas as needed
         }
     
@@ -902,9 +1100,9 @@ if __name__ == "__main__":
     image_bytes_list = []
 
     # Load all 5 images
-    for i in range(1, 4):
+    for i in range(1, 3):
         try:
-            with open(f"data/doctor_letter/1/{i}.jpg", "rb") as f:
+            with open(f"data/insurance_card/1/{i}.jpg", "rb") as f:
                 image_bytes = f.read()
                 image_bytes_list.append(image_bytes)
         except Exception as e:
