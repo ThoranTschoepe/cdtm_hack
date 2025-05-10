@@ -149,10 +149,18 @@ class OnboardingAgent:
                 # Get the next question
                 return self.get_next_question(state)
     
-    def process_document(self, state: OnboardingState, image_bytes: bytes, filename: str) -> DocumentProcessResponse:
-        """Process a document uploaded by the user"""
-        # Process the document using the document processor
-        result = self.document_processor.process_pages([image_bytes])
+    def process_documents(self, state: OnboardingState, image_bytes_list: List[bytes], filenames: List[str]) -> DocumentProcessResponse:
+        """Process multiple documents uploaded by the user"""
+        if not image_bytes_list or len(image_bytes_list) == 0:
+            return DocumentProcessResponse(
+                success=False,
+                filename="no_files",
+                extracted_data={},
+                document_types=[]
+            )
+        
+        # Process all documents together using the document processor
+        result = self.document_processor.process_pages(image_bytes_list)
         
         # Extract relevant information
         extracted_data = self._extract_relevant_info(result)
@@ -161,15 +169,16 @@ class OnboardingAgent:
         current_q = self.QUESTIONS[state.current_question_index]
         auto_answer = self._generate_answer_from_document(current_q, extracted_data)
         
-        # Update state with the answer and document
-        self._update_state(state, current_q, f"strong_yes: {auto_answer}", filename)
+        # Update state with the answer and documents
+        files_str = ", ".join(filenames)
+        self._update_state(state, current_q, f"strong_yes: {auto_answer}", files_str)
         
         # Add extracted data to state
         if not hasattr(state, "extracted_documents"):
             state.extracted_documents = []
             
         state.extracted_documents.append({
-            "filename": filename,
+            "filename": files_str,
             "data": extracted_data,
             "document_types": list(result.document_groups.keys())
         })
@@ -180,7 +189,7 @@ class OnboardingAgent:
         
         return DocumentProcessResponse(
             success=True,
-            filename=filename,
+            filename=files_str,
             extracted_data=extracted_data,
             document_types=list(result.document_groups.keys())
         )

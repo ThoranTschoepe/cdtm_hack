@@ -7,8 +7,6 @@ import AudioRecorder from './components/AudioRecorder';
 
 import api from './services/api';
 
-
-
 function App() {
   const [sessionId, setSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -71,21 +69,30 @@ function App() {
     }
   };
 
-  // Handle file upload
-  const handleFileUpload = async (file) => {
+  // Handle file upload for multiple files
+  const handleFileUpload = async (files) => {
     if (!sessionId || isLoading) return;
 
     setIsLoading(true);
-    setMessages(prev => [...prev, { text: `Uploading file: ${file.name}...`, isUser: true }]);
+    
+    // If single file is passed, convert to array
+    const fileArray = Array.isArray(files) ? files : [files];
+    
+    // Show message about uploading multiple files
+    const fileNames = fileArray.map(file => file.name).join(', ');
+    setMessages(prev => [...prev, { 
+      text: `Uploading ${fileArray.length} file(s): ${fileNames}`, 
+      isUser: true 
+    }]);
 
     try {
-      const response = await api.uploadDocument(sessionId, file);
+      const response = await api.uploadDocuments(sessionId, fileArray);
       
       // Show uploaded file info and extracted data
       setLatestExtractedData(response.extracted_data);
       
       setMessages(prev => [...prev, { 
-        text: `File processed successfully: ${response.filename}`, 
+        text: `Files processed successfully: ${response.filename}`, 
         isUser: false 
       }]);
 
@@ -95,9 +102,9 @@ function App() {
       setAwaitingFollowup(nextQuestion.awaiting_followup);
       setIsDone(nextQuestion.done);
     } catch (error) {
-      console.error('Error uploading file:', error);
+      console.error('Error uploading files:', error);
       setMessages(prev => [...prev, { 
-        text: 'An error occurred while processing the file. Please try again.', 
+        text: 'An error occurred while processing the files. Please try again.', 
         isUser: false 
       }]);
     } finally {
