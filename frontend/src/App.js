@@ -3,7 +3,11 @@ import Chat from './components/Chat';
 import UserInput from './components/UserInput';
 import FileUpload from './components/FileUpload';
 import ResultPreview from './components/ResultPreview';
+import AudioRecorder from './components/AudioRecorder'; 
+
 import api from './services/api';
+
+
 
 function App() {
   const [sessionId, setSessionId] = useState(null);
@@ -128,16 +132,19 @@ function App() {
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px' }}>
       <h1>Medical Onboarding Assistant</h1>
-      
+  
       <Chat messages={messages} />
-      
+  
       {latestExtractedData && <ResultPreview extractedData={latestExtractedData} />}
-      
+  
       {!isDone ? (
         awaitingFollowup ? (
           <FileUpload onUpload={handleFileUpload} isMultiple={true} />
         ) : (
-          <UserInput onSend={handleSendMessage} disabled={isLoading} />
+          <>
+            <UserInput onSend={handleSendMessage} disabled={isLoading} />
+            <AudioRecorder onTranscription={handleSendMessage} />
+          </>
         )
       ) : (
         <button 
@@ -155,7 +162,7 @@ function App() {
           Start Over
         </button>
       )}
-      
+  
       {isLoading && (
         <div style={{ textAlign: 'center', margin: '10px 0' }}>
           Processing...
