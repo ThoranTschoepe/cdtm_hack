@@ -1,118 +1,258 @@
-from google import genai
-from google.genai import types
-import base64
+# backend/main.py
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import uuid
+import os
+from typing import Dict, List, Optional
 
-def get_image_locally(image_path: str):
-  # Read the image file and encode it as base64
-  with open(image_path, "rb") as image_file:
-      image_bytes = image_file.read()
-      base64_encoded = base64.b64encode(image_bytes).decode('utf-8')
+from pydantic import BaseModel
+from models import OnboardingState, QuestionResponse, DocumentProcessResponse
+from document_processor import MultiDocumentProcessor
 
-  # Create the message part from the image
-  msg1_image1 = types.Part.from_bytes(
-      data=base64.b64decode(base64_encoded),
-      mime_type="image/jpeg",
-  )
+app = FastAPI(title="Medical Onboarding API")
 
-  return msg1_image1
+# Configure CORS for frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Your React app URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
+# Configuration
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-def categorize_picture():
-  client = genai.Client(
-      vertexai=True,
-      project="avi-cdtm-hack-team-9800",
-      location="us-central1",
-  )
+# Initialize the document processor
+document_processor = MultiDocumentProcessor()
 
-  msg1_image1 = get_image_locally("data/IMG_0417.jpg")
+# Mock database for user sessions (in production, use a real database)
+sessions: Dict[str, OnboardingState] = {}
 
-  model = "gemini-2.5-pro-preview-05-06"
-  contents = [
-    types.Content(
-      role="user",
-      parts=[
-        msg1_image1,
-        types.Part.from_text(text="""categorize this as either \"medications\", \"allergies\", \"diagnoses\", \"lab_results\"""")
-      ]
-    ),
-  ]
-  generate_content_config = types.GenerateContentConfig(
-    temperature = 1,
-    top_p = 1,
-    seed = 0,
-    max_output_tokens = 65535,
-    response_modalities = ["TEXT"],
-    safety_settings = [types.SafetySetting(
-      category="HARM_CATEGORY_HATE_SPEECH",
-      threshold="OFF"
-    ),types.SafetySetting(
-      category="HARM_CATEGORY_DANGEROUS_CONTENT",
-      threshold="OFF"
-    ),types.SafetySetting(
-      category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
-      threshold="OFF"
-    ),types.SafetySetting(
-      category="HARM_CATEGORY_HARASSMENT",
-      threshold="OFF"
-    )],
-    response_mime_type = "application/json",
-    response_schema = {"type":"OBJECT","properties":{"object":{"type":"STRING"}}},
-  )
+# Questions list
+QUESTIONS = [
+    "Do you take any medication?", 
+    "Have you been to the hospital?", 
+    "Do you have any chronic diseases"
+]
 
-  for chunk in client.models.generate_content_stream(
-    model = model,
-    contents = contents,
-    config = generate_content_config,
-    ):
-    print(chunk.text, end="")
+# Helper functions
+def get_session(session_id: str) -> OnboardingState:
+    """Get or create a session"""
+    if session_id not in sessions:
+        sessions[session_id] = OnboardingState(id=session_id)
+    return sessions[session_id]
 
-def parse_lab_report():
-  client = genai.Client(
-      vertexai=True,
-      project="avi-cdtm-hack-team-9800",
-      location="us-central1",
-  )
+def extract_relevant_info(result):
+    """Extract relevant information from OCR result based on document type"""
+    extracted_info = {}
+    
+    for doc_type, group in result.document_groups.items():
+        if not group.combined_data:
+            continue
+            
+        data = group.combined_data
+        
+        # Process based on document type
+        if doc_type == "MedicationBox" or doc_type == "Prescription":
+            medications = data.get("medications", [])
+            if "medications" not in extracted_info:
+                extracted_info["medications"] = []
+            extracted_info["medications"].extend(medications)
+            
+        elif doc_type == "HospitalLetter" or doc_type == "DoctorLetter":
+            # Extract diagnosis and hospital/clinic info
+            if "diagnoses" in data:
+                extracted_info["diagnoses"] = data.get("diagnoses", [])
+            if "hospital" in data:
+                extracted_info["hospital_visits"] = [data.get("hospital", {})]
+                
+        elif doc_type == "LabReport":
+            if "test_results" in data:
+                extracted_info["test_results"] = data.get("test_results", [])
+                
+        # Add patient info from any document type
+        if "patient" in data:
+            extracted_info["patient"] = data.get("patient", {})
+    
+    return extracted_info
 
-  msg1_image1 = get_image_locally("data/IMG_2221.jpg")
+def is_positive(text: str) -> bool:
+    """Check if user response is positive"""
+    return "yes" in text.lower()
 
-  model = "gemini-2.0-flash-001"
-  contents = [
-    types.Content(
-      role="user",
-      parts=[
-        msg1_image1,
-        types.Part.from_text(text="""extract data as the json schema""")
-      ]
-    ),
-  ]
-  generate_content_config = types.GenerateContentConfig(
-    temperature = 1,
-    top_p = 0.95,
-    max_output_tokens = 8192,
-    response_modalities = ["TEXT"],
-    safety_settings = [types.SafetySetting(
-      category="HARM_CATEGORY_HATE_SPEECH",
-      threshold="OFF"
-    ),types.SafetySetting(
-      category="HARM_CATEGORY_DANGEROUS_CONTENT",
-      threshold="OFF"
-    ),types.SafetySetting(
-      category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
-      threshold="OFF"
-    ),types.SafetySetting(
-      category="HARM_CATEGORY_HARASSMENT",
-      threshold="OFF"
-    )],
-    response_mime_type = "application/json",
-    response_schema = {"type":"OBJECT","properties":{"report_metadata":{"type":"OBJECT","properties":{"lab_name":{"type":"STRING"},"report_date":{"type":"STRING"},"report_id":{"type":"STRING"}}},"patient_information":{"type":"OBJECT","properties":{"name":{"type":"STRING"},"id":{"type":"STRING"},"date_of_birth":{"type":"STRING"},"gender":{"type":"STRING"}},"required":["name","id"]},"test_results":{"type":"ARRAY","items":{"type":"OBJECT","properties":{"test_name":{"type":"STRING"},"test_category":{"type":"STRING"},"test_code":{"type":"STRING","nullable":True},"value":{"type":"STRING"},"unit":{"type":"STRING"},"reference_range":{"type":"OBJECT","properties":{"lower_limit":{"type":"STRING","nullable":True},"upper_limit":{"type":"STRING","nullable":True},"text_range":{"type":"STRING","nullable":True}}},"flag":{"type":"STRING","enum":["normal","low","high","critical_low","critical_high","abnormal","not_applicable"],"nullable":True},"comments":{"type":"STRING","nullable":True}},"required":["test_name","value"]}},"interpretation":{"type":"STRING","nullable":True}},"required":["patient_information","test_results"]},
-  )
+def check_extracted_data_for_answer(question, extracted_data):
+    """Check if the extracted data can answer the current question"""
+    question_lower = question.lower()
+    
+    if "medication" in question_lower and extracted_data.get("medications"):
+        return "yes - found in document: " + ", ".join(m.get("name", "") for m in extracted_data.get("medications", [])[:3])
+        
+    if "hospital" in question_lower and extracted_data.get("hospital_visits"):
+        return "yes - found in document: " + extracted_data.get("hospital_visits", [{}])[0].get("name", "Hospital visit confirmed")
+        
+    if "chronic" in question_lower and "disease" in question_lower and extracted_data.get("diagnoses"):
+        return "yes - found in document: " + ", ".join(d.get("condition", "") for d in extracted_data.get("diagnoses", [])[:3])
+        
+    return None
 
-  for chunk in client.models.generate_content_stream(
-    model = model,
-    contents = contents,
-    config = generate_content_config,
-    ):
-    print(chunk.text, end="")
+def update_state(state: OnboardingState, question=None, answer=None, followup_file=None):
+    """Update session state with new question/answer"""
+    state.previous_questions.append({
+        "question": question,
+        "answer": answer,
+        "followup": followup_file
+    })
+    return state
 
-#categorize_picture()
-parse_lab_report()
+# API Endpoints
+@app.post("/session")
+async def create_session():
+    """Create a new session"""
+    session_id = str(uuid.uuid4())
+    sessions[session_id] = OnboardingState(id=session_id)
+    return {"session_id": session_id}
+
+@app.get("/questions/{session_id}")
+async def get_next_question(session_id: str):
+    """Get the next question or current state"""
+    state = get_session(session_id)
+    message = ""
+    done = False
+    
+    if state.current_question_index >= len(QUESTIONS):
+        message = "Thank you for completing the onboarding process."
+        done = True
+    elif not state.awaiting_followup:
+        message = QUESTIONS[state.current_question_index]
+    else:
+        # Awaiting document upload
+        current_q = QUESTIONS[state.current_question_index]
+        message = f"Do you have a report for the question: {current_q}?"
+    
+    return QuestionResponse(
+        message=message,
+        awaiting_followup=state.awaiting_followup,
+        done=done,
+        current_question_index=state.current_question_index,
+        extracted_data_preview=None
+    )
+
+@app.post("/answer/{session_id}")
+async def submit_answer(session_id: str, answer: str):
+    """Submit an answer to the current question"""
+    state = get_session(session_id)
+    message = ""
+    
+    current_q = QUESTIONS[state.current_question_index]
+    
+    if is_positive(answer):
+        message = f"Do you have a report for the question: {current_q}?"
+        state.awaiting_followup = True
+        state.last_question = current_q
+    else:
+        update_state(state, current_q, "no", None)
+        state.current_question_index += 1
+        
+        if state.current_question_index >= len(QUESTIONS):
+            message = "Thank you for completing the onboarding process."
+            done = True
+        else:
+            message = QUESTIONS[state.current_question_index]
+            done = False
+    
+    sessions[session_id] = state
+    
+    return QuestionResponse(
+        message=message,
+        awaiting_followup=state.awaiting_followup,
+        done=state.current_question_index >= len(QUESTIONS),
+        current_question_index=state.current_question_index,
+        extracted_data_preview=None
+    )
+
+@app.post("/document/{session_id}")
+async def process_document(session_id: str, file: UploadFile = File(...)):
+    """Process an uploaded document"""
+    state = get_session(session_id)
+    
+    # Save the file
+    filename = f"{uuid.uuid4()}_{file.filename}"
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    
+    with open(filepath, "wb") as buffer:
+        buffer.write(await file.read())
+    
+    # Process the document
+    try:
+        with open(filepath, "rb") as f:
+            image_bytes = f.read()
+            
+        # Process single image
+        result = document_processor.process_pages([image_bytes])
+        
+        # Extract relevant information based on document type
+        extracted_data = extract_relevant_info(result)
+        
+        # Check if extracted data answers the current question
+        current_q = QUESTIONS[state.current_question_index]
+        auto_answer = check_extracted_data_for_answer(current_q, extracted_data)
+        
+        # Update state with the answer and document
+        update_state(state, current_q, auto_answer or "yes", filename)
+        
+        # Add extracted data to state
+        if not hasattr(state, "extracted_documents"):
+            state.extracted_documents = []
+            
+        state.extracted_documents.append({
+            "filename": filename,
+            "data": extracted_data,
+            "document_types": list(result.document_groups.keys())
+        })
+        
+        # Move to next question
+        state.awaiting_followup = False
+        state.current_question_index += 1
+        
+        # Determine next message
+        if state.current_question_index >= len(QUESTIONS):
+            message = "Thank you for completing the onboarding process."
+            done = True
+        else:
+            message = QUESTIONS[state.current_question_index]
+            done = False
+        
+        sessions[session_id] = state
+        
+        return DocumentProcessResponse(
+            success=True,
+            filename=filename,
+            extracted_data=extracted_data,
+            document_types=list(result.document_groups.keys())
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing document: {str(e)}")
+
+@app.get("/state/{session_id}")
+async def get_session_state(session_id: str):
+    """Get the current session state"""
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    return sessions[session_id]
+
+@app.delete("/session/{session_id}")
+async def reset_session(session_id: str):
+    """Reset a session"""
+    if session_id in sessions:
+        del sessions[session_id]
+    
+    return {"success": True}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
