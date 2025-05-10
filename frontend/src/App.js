@@ -121,6 +121,40 @@ function App() {
     }
   };
 
+
+    // Handle text input submission
+const handleVoiceResponse = async (fileBlob) => {
+  setMessages(prev => [...prev, { text: '🎤 Voice input sent...', isUser: true }]);
+  setIsLoading(true);
+
+  try {
+    const formData = new FormData();
+    formData.append('file', fileBlob, 'recording.wav');
+
+    const res = await fetch(`http://localhost:8000/answer_transcribe/${sessionId}`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    const response = await res.json();
+    console.log("Voice response from backend:", response);
+
+    const msgText = response.message || response.text || response || "🤖 No message";
+    setMessages(prev => [...prev, { text: msgText, isUser: false }]);
+
+    setAwaitingFollowup(response.awaiting_followup);
+    setIsDone(response.done);
+  } catch (error) {
+    console.error('Error processing voice input:', error);
+    setMessages(prev => [...prev, {
+      text: 'Something went wrong after transcribing audio.',
+      isUser: false,
+    }]);
+  } finally {
+    setIsLoading(false);
+  }
+};
+
   // Reset the session
   const handleReset = async () => {
     if (!sessionId) return;
@@ -159,7 +193,8 @@ function App() {
         ) : (
           <>
             <UserInput onSend={handleSendMessage} disabled={isLoading} />
-            <AudioRecorder onTranscription={handleSendMessage} />
+            <AudioRecorder onResponse={handleVoiceResponse} sessionId={sessionId} />
+
           </>
         )
       ) : (

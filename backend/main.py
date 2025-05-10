@@ -10,7 +10,7 @@ from models import OnboardingState, QuestionResponse, DocumentProcessResponse
 from document_processor import MultiDocumentProcessor
 from onboarding_agent import OnboardingAgent # Import the new agent
 from fastapi.responses import StreamingResponse
-from voice.llm import synthesize_speech
+from voice.llm import synthesize_speech, transcribe_audio_file
 app = FastAPI(title="Medical Onboarding API")
 
 # Configure CORS for frontend
@@ -82,6 +82,32 @@ async def submit_answer(session_id: str, request: AnswerRequest):
     # Update the session state
     sessions[session_id] = state
     return response
+
+
+@app.post("/answer_transcribe/{session_id}")
+async def submit_transcribed_answer(
+    session_id: str,
+    answer: str = Form(None),
+    file: UploadFile = File(None)
+):
+    """Submit a text or audio answer"""
+    state = get_session(session_id)
+
+    try:
+        # 1. Get the answer from audio or form
+        if file:
+            answer = transcribe_audio_file(file)
+        elif not answer:
+            raise HTTPException(status_code=400, detail="No input provided.")
+
+        # 2. Process the answer
+        response = agent.process_answer(state, answer)
+        sessions[session_id] = state
+        print(answer)
+        return response
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process answer: {str(e)}")
 
 @app.post("/document/{session_id}")
 async def process_document(session_id: str, files: List[UploadFile] = File(...)):

@@ -1,50 +1,34 @@
 import React, { useState, useRef } from 'react';
+import Recorder from 'recorder-js';
 
 function AudioRecorder({ sessionId, onResponse }) {
   const [recording, setRecording] = useState(false);
-  const mediaRecorderRef = useRef(null);
-  const audioChunks = useRef([]);
+  const recorderRef = useRef(null);
+  const audioContextRef = useRef(null);
 
   const startRecording = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorderRef.current = new MediaRecorder(stream);
+    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    recorderRef.current = new Recorder(audioContextRef.current, {
+      // optional: specify encoding
+      type: 'audio/wav'
+    });
 
-    audioChunks.current = [];
-
-    mediaRecorderRef.current.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        audioChunks.current.push(event.data);
-      }
-    };
-
-    mediaRecorderRef.current.onstop = async () => {
-      const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
-      audioChunks.current = [];
-
-      const formData = new FormData();
-      formData.append('file', audioBlob, 'recording.webm');
-
-      try {
-        const res = await fetch(`http://localhost:8000/answer_transcribe/${sessionId}`, {
-          method: 'POST',
-          body: formData
-        });
-
-        const data = await res.json();
-        onResponse({ text: data.message || data.text, isUser: false });
-      } catch (err) {
-        console.error("Upload error:", err);
-        onResponse({ text: 'Error transcribing audio. Please try again.', isUser: false });
-      }
-    };
-
-    mediaRecorderRef.current.start();
+    recorderRef.current.init(stream);
+    recorderRef.current.start();
     setRecording(true);
   };
 
-  const stopRecording = () => {
-    mediaRecorderRef.current.stop();
+  const stopRecording = async () => {
+    const { blob } = await recorderRef.current.stop();
     setRecording(false);
+  
+    try {
+      // ⬅️ Let App.js handle sending to backend + chat update
+      onResponse(blob);
+    } catch (err) {
+      console.error("Recording failed:", err);
+    }
   };
 
   return (
@@ -58,8 +42,7 @@ function AudioRecorder({ sessionId, onResponse }) {
           border: 'none',
           borderRadius: '8px',
           fontSize: '16px',
-          cursor: 'pointer',
-          transition: 'background-color 0.3s'
+          cursor: 'pointer'
         }}
       >
         🎤 {recording ? 'Stop Recording' : 'Start Voice Input'}
