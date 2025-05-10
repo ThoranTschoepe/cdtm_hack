@@ -1,3 +1,5 @@
 cdtm_hack/**
 
 **/__pycache__/**
+
+frontend/node_modules/**
