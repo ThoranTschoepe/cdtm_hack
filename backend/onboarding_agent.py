@@ -16,7 +16,8 @@ class OnboardingAgent:
         "current_symptoms",
         "insurance",
         "medication",
-        "health_record"
+        "health_record",
+        "review_data"
     ]
     
     # Questions for each category
@@ -24,7 +25,8 @@ class OnboardingAgent:
         "current_symptoms": "Hi, I am Shelly. How can I help you?",
         "insurance": "Do you have health insurance?",
         "medication": "Do you take any medication?",
-        "health_record": "Do you have any health records or medical history?"
+        "health_record": "Do you have any health records or medical history?",
+        "review_data": "Let me review the information you've provided to see if anything is missing. Do you want to proceed?"
     }
     
     # Explanations for questions that might be confusing
@@ -32,7 +34,8 @@ class OnboardingAgent:
         "current_symptoms": "Please describe any symptoms or health concerns you're currently experiencing that led you to seek medical care.",
         "insurance": "This information helps us process your medical claims and determine coverage for treatments.",
         "medication": "This includes prescription medications, over-the-counter medicines, supplements, or vitamins that you take regularly.",
-        "health_record": "Health records include hospital visits, doctor's notes, lab results, or any medical history documentation."
+        "health_record": "Health records include hospital visits, doctor's notes, lab results, or any medical history documentation.",
+        "review_data": "I'll check for any important health information that might be missing, such as medication details, vaccination status, or allergies."
     }
     
     def __init__(self, document_processor):
@@ -49,6 +52,16 @@ class OnboardingAgent:
         """Generate a conversational prompt for the next question or document request"""
         current_category = state.current_category
         
+        # Ensure all categories are initialized in category_states
+        for category in self.CATEGORIES:
+            if category not in state.category_states:
+                state.category_states[category] = "not_started"
+                
+        # Also ensure document_count is initialized for all categories
+        for category in self.CATEGORIES:
+            if category not in state.document_count:
+                state.document_count[category] = 0
+        
         # Check if we've completed all categories
         if all(state.category_states.get(cat) in ["enough_data", "not_enough_data"] for cat in self.CATEGORIES):
             summary = self._generate_summary(state)
@@ -59,7 +72,61 @@ class OnboardingAgent:
                 current_question_index=len(self.CATEGORIES),  # All complete
                 extracted_data=self._get_data_preview(state)
             )
+        
+        # Special handling for review_data category
+        if current_category == "review_data" and state.category_states[current_category] == "not_started":
+            # First time entering the review data category
+            question = self.QUESTIONS[current_category]
+            conversational_q = self._generate_question(question, state)
             
+            # Update state
+            state.category_states[current_category] = "asked"
+            
+            return QuestionResponse(
+                message=conversational_q,
+                awaiting_followup=False,
+                done=False,
+                current_question_index=self.CATEGORIES.index(current_category),
+                extracted_data=None
+            )
+        elif current_category == "review_data" and state.category_states[current_category] == "asked":
+            # After user has agreed to review, analyze for missing data
+            # Analyze for missing information
+            missing_data = self._analyze_for_missing_data(state)
+            
+            if missing_data and len(missing_data) > 0:
+                # Store the missing data items in the state
+                state.missing_data_items = missing_data
+                
+                # Get the first item and ask about it
+                first_item = missing_data.pop(0)
+                state.current_missing_data_item = first_item
+                
+                # Mark category as in progress
+                state.category_states[current_category] = "in_progress"
+                
+                prompt = self._generate_missing_data_question(first_item, state)
+                return QuestionResponse(
+                    message=prompt,
+                    awaiting_followup=False,
+                    done=False,
+                    current_question_index=self.CATEGORIES.index(current_category),
+                    extracted_data=self._get_data_preview(state)
+                )
+            else:
+                # No missing data items, mark as complete
+                state.category_states[current_category] = "enough_data"
+                
+                # Return the final summary
+                summary = self._generate_summary(state)
+                return QuestionResponse(
+                    message=summary,
+                    awaiting_followup=False,
+                    done=True,
+                    current_question_index=len(self.CATEGORIES),
+                    extracted_data=self._get_data_preview(state)
+                )
+        
         # Get current category state
         category_state = state.category_states[current_category]
         
@@ -87,7 +154,7 @@ class OnboardingAgent:
             question = self.QUESTIONS[current_category]
             
             return QuestionResponse(
-                message=f"Please answer the question: {question}",
+                message=f"{question}",
                 awaiting_followup=False,
                 done=False,
                 current_question_index=self.CATEGORIES.index(current_category),
@@ -161,6 +228,104 @@ class OnboardingAgent:
         # Store the last answer for potential clarification
         state.last_answer = answer
         
+        # Special handling for the review_data category
+        if current_category == "review_data":
+            if category_state == "asked":
+                # User responding to the initial question about reviewing data
+                is_clear, response_type = self._evaluate_answer(answer, self.QUESTIONS[current_category])
+                
+                if response_type in ["strong_yes", "yes"]:
+                    # User wants to proceed with review
+                    # Analyze for missing information
+                    missing_data = self._analyze_for_missing_data(state)
+                    
+                    if missing_data and len(missing_data) > 0:
+                        # Store the missing data items in the state
+                        state.missing_data_items = missing_data
+                        
+                        # Get the first item and ask about it
+                        first_item = missing_data.pop(0)
+                        state.current_missing_data_item = first_item
+                        
+                        # Mark category as in progress
+                        state.category_states[current_category] = "in_progress"
+                        
+                        prompt = self._generate_missing_data_question(first_item, state)
+                        return QuestionResponse(
+                            message=prompt,
+                            awaiting_followup=False,
+                            done=False,
+                            current_question_index=self.CATEGORIES.index(current_category),
+                            extracted_data=self._get_data_preview(state)
+                        )
+                    else:
+                        # No missing data items, mark as complete
+                        state.category_states[current_category] = "enough_data"
+                        
+                        # Return the final summary
+                        summary = self._generate_summary(state)
+                        return QuestionResponse(
+                            message=summary,
+                            awaiting_followup=False,
+                            done=True,
+                            current_question_index=len(self.CATEGORIES),
+                            extracted_data=self._get_data_preview(state)
+                        )
+                else:
+                    # User doesn't want to proceed with review, mark as enough_data and finish
+                    state.category_states[current_category] = "enough_data"
+                    
+                    # Return the final summary
+                    summary = self._generate_summary(state)
+                    return QuestionResponse(
+                        message=summary,
+                        awaiting_followup=False,
+                        done=True,
+                        current_question_index=len(self.CATEGORIES),
+                        extracted_data=self._get_data_preview(state)
+                    )
+            elif category_state == "in_progress":
+                # User responding to a question about specific missing data
+                # Store the answer to the specific missing data question
+                if hasattr(state, 'current_missing_data_item') and state.current_missing_data_item:
+                    item = state.current_missing_data_item
+                    if not hasattr(state, 'missing_data_responses'):
+                        state.missing_data_responses = {}
+                    state.missing_data_responses[item] = answer
+                
+                # Check if we have more missing data items to ask about
+                if hasattr(state, 'missing_data_items') and state.missing_data_items:
+                    if len(state.missing_data_items) > 0:
+                        # Get the next item and ask about it
+                        next_item = state.missing_data_items.pop(0)
+                        state.current_missing_data_item = next_item
+                        
+                        prompt = self._generate_missing_data_question(next_item, state)
+                        return QuestionResponse(
+                            message=prompt,
+                            awaiting_followup=False,
+                            done=False,
+                            current_question_index=self.CATEGORIES.index(current_category),
+                            extracted_data=self._get_data_preview(state)
+                        )
+                    else:
+                        # No more items, mark this category as done
+                        state.category_states[current_category] = "enough_data"
+                        
+                        # Generate a summary of the missing data responses
+                        if hasattr(state, 'missing_data_responses') and state.missing_data_responses:
+                            state.missing_data_recommendations = self._generate_missing_data_summary(state.missing_data_responses)
+                        
+                        # Return the final summary
+                        summary = self._generate_summary(state)
+                        return QuestionResponse(
+                            message=summary,
+                            awaiting_followup=False,
+                            done=True,
+                            current_question_index=len(self.CATEGORIES),
+                            extracted_data=self._get_data_preview(state)
+                        )
+        
         # Special handling for current_symptoms category (first question)
         if current_category == "current_symptoms" and category_state == "asked":
             # Extract symptoms from answer
@@ -185,6 +350,55 @@ class OnboardingAgent:
         
         # Check for skip response at any stage
         if answer.lower() == "skip":
+            # Special handling for review_data category when skipping
+            if current_category == "review_data":
+                if category_state == "in_progress":
+                    # Skip the current item and move to the next one
+                    if hasattr(state, 'missing_data_items') and state.missing_data_items:
+                        if len(state.missing_data_items) > 0:
+                            # Get the next item and ask about it
+                            next_item = state.missing_data_items.pop(0)
+                            state.current_missing_data_item = next_item
+                            
+                            prompt = self._generate_missing_data_question(next_item, state)
+                            return QuestionResponse(
+                                message=prompt,
+                                awaiting_followup=False,
+                                done=False,
+                                current_question_index=self.CATEGORIES.index(current_category),
+                                extracted_data=self._get_data_preview(state)
+                            )
+                        else:
+                            # No more items, mark as done
+                            state.category_states[current_category] = "enough_data"
+                            
+                            # Generate a summary of the missing data responses
+                            if hasattr(state, 'missing_data_responses') and state.missing_data_responses:
+                                state.missing_data_recommendations = self._generate_missing_data_summary(state.missing_data_responses)
+                            
+                            # Return the final summary
+                            summary = self._generate_summary(state)
+                            return QuestionResponse(
+                                message=summary,
+                                awaiting_followup=False,
+                                done=True,
+                                current_question_index=len(self.CATEGORIES),
+                                extracted_data=self._get_data_preview(state)
+                            )
+                elif category_state == "asked":
+                    # User is skipping the entire review process
+                    state.category_states[current_category] = "enough_data"
+                    
+                    # Return the final summary
+                    summary = self._generate_summary(state)
+                    return QuestionResponse(
+                        message=summary,
+                        awaiting_followup=False,
+                        done=True,
+                        current_question_index=len(self.CATEGORIES),
+                        extracted_data=self._get_data_preview(state)
+                    )
+            
             # Handle skip based on current state
             if category_state == "asked":
                 # When skipping the initial category question, treat as "no"
@@ -464,8 +678,8 @@ class OnboardingAgent:
             
     def _generate_more_documents_prompt(self, category: str, state: OnboardingState) -> str:
         """Generate a prompt asking if user has more documents for the current category"""
-        # Use a short, direct message focused on appointment preparation
-        return f"Do you have additional {category.replace('_', ' ')} documents to include in your appointment file? Type 'done' if complete."
+        # Use a direct, focused message
+        return f"Do you have additional {category.replace('_', ' ')} documents to include? Type or click 'skip' if complete."
 
     def _check_has_more_documents(self, answer: str) -> bool:
         """Check if user indicated they have more documents to upload"""
@@ -528,8 +742,8 @@ class OnboardingAgent:
         elif category == "health_record":
             examples = "hospital letter, doctor's note, discharge summary, lab results, immunization records"
         
-        # Use a short message that clearly indicates both upload and skip options
-        return f"For your general practice appointment, please upload your {category.replace('_', ' ')} documents (e.g., {examples}) or click 'Skip' to continue without uploading."
+        # Use a direct message that clearly indicates both upload and skip options
+        return f"Please upload your {category.replace('_', ' ')} documents (e.g., {examples}) for your general practice appointment. Click 'Skip' to continue without uploading."
     
     def _evaluate_answer(self, answer: str, question: str) -> Tuple[bool, str]:
         """
@@ -595,7 +809,7 @@ class OnboardingAgent:
         """Generate a conversational version of the question"""
         # Special handling for the first question (Shelly's greeting)
         if question == self.QUESTIONS["current_symptoms"]:
-            return "Welcome! I'm Shelly, your medical assistant. I'll help you prepare the necessary documents for your general practice appointment. To get started, could you please tell me what brings you in today?"
+            return "I'm Shelly, your medical assistant. I'll help you prepare the necessary documents for your general practice appointment. To get started, please tell me what brings you in today."
             
         # Get the history of previous questions and answers
         history = ""
@@ -611,12 +825,16 @@ class OnboardingAgent:
         
         Next question to ask: {question}
         
-        Generate a warm, professional way to ask this question.
+        Generate a direct, professional way to ask this question.
         Focus on gathering the information needed to prepare for their appointment.
         Make it clear you're helping them get their documents ready for the general practice.
-        Keep it relatively brief but supportive.
         
-        Also subtly mention that they can type "skip" at any time if they prefer not to answer or want to move to the next section.
+        IMPORTANT:
+        - DO NOT start with greetings like "Hi", "Hello", or "Good day"
+        - Make the question direct and concise (1-3 sentences maximum)
+        - No small talk or unnecessary preamble
+        - Mention that they can type "skip" if they prefer not to answer
+        - Focus solely on gathering the specific information needed
         
         IMPORTANT: Do not include any quotation marks in your response.
         """
@@ -633,7 +851,7 @@ class OnboardingAgent:
             return cleaned_response
         except Exception as e:
             print(f"Error generating question: {e}")
-            return f"For your general practice appointment, I need to ask: {question} Would you mind sharing this information with us? You can also type 'skip' if you'd prefer to move on to the next question."
+            return f"For your general practice appointment: {question} You can type 'skip' to move to the next question."
     
     def _generate_clarification(self, question: str, last_answer: str, state: OnboardingState) -> str:
         """Generate a clarification request for an ambiguous answer"""
@@ -646,13 +864,17 @@ class OnboardingAgent:
         Patient's ambiguous response: "{last_answer}"
         Additional explanation available: {explanation}
         
-        Generate a clear, professional message that:
-        1. Acknowledges their response
-        2. Explains what information is needed for their appointment documents
-        3. Asks for clarification in a straightforward way
-        4. Keeps the focus on preparing for their general practice visit
+        Generate a direct, professional clarification request that:
+        1. Briefly acknowledges their response
+        2. Clearly states what information is needed
+        3. Explains why this is important for their appointment documents
+        4. Asks for a more specific response
         
-        Keep it brief and helpful.
+        IMPORTANT:
+        - DO NOT start with greetings like "Hi", "Hello", or "Good day"
+        - Make the question direct and concise (1-3 sentences maximum)
+        - No small talk or unnecessary preamble
+        - Focus solely on getting the specific medical information needed
         
         IMPORTANT: Do not include any quotation marks in your response.
         """
@@ -669,7 +891,7 @@ class OnboardingAgent:
             return cleaned_response
         except Exception as e:
             print(f"Error generating clarification: {e}")
-            return f"Thank you for your response. For your general practice appointment, we need to know: {question} {explanation} Could you please clarify this for your medical records?"
+            return f"I need a clearer answer about: {question} {explanation} Please provide this information for your medical records."
     
     def _generate_answer_from_document(self, question: str, extracted_data: Dict[str, Any]) -> str:
         """Generate an answer based on document content"""
@@ -759,6 +981,11 @@ class OnboardingAgent:
             docs_text += f"\n\n{category.replace('_', ' ').title()} Documents:\n"
             docs_text += "\n\n".join(docs)
         
+        # Include missing data recommendations if available
+        missing_data_recommendations = ""
+        if hasattr(state, 'missing_data_recommendations') and state.missing_data_recommendations:
+            missing_data_recommendations = f"\n\nRecommendations for missing information:\n{state.missing_data_recommendations}"
+        
         prompt = f"""
         You are Shelly, a medical assistant helping patients prepare documents for their general practice appointment.
         
@@ -773,6 +1000,7 @@ class OnboardingAgent:
         {doc_count_summary}
         
         Extracted document data:{docs_text}
+        {missing_data_recommendations}
         
         Generate a concise, professional summary of the documents prepared for the general practice appointment.
         
@@ -1272,3 +1500,268 @@ class OnboardingAgent:
         except Exception as e:
             print(f"Error generating clinical summary: {str(e)}")
             return patient_description  # Return original if processing fails
+
+    def _analyze_for_missing_data(self, state: OnboardingState) -> List[str]:
+        """
+        Analyze the collected data to identify missing information that would be 
+        important for a general practitioner.
+        
+        Returns a list of missing data items to query the patient about.
+        """
+        # Get the data preview to analyze
+        data_preview = self._get_data_preview(state)
+        
+        # Convert to JSON for the prompt
+        data_json = json.dumps(data_preview, indent=2)
+        
+        # Get symptoms info
+        symptoms_description = state.symptoms_info.get("description", "No symptoms described")
+        symptoms_list = state.symptoms_info.get("extracted_symptoms", [])
+        
+        prompt = f"""
+        You are a medical assistant reviewing a patient's information before their general practice appointment.
+        Your task is to identify important missing medical information that would be helpful for the doctor.
+        
+        Patient's main concern: {symptoms_description}
+        Extracted symptoms: {', '.join(symptoms_list) if symptoms_list else 'None extracted'}
+        
+        Patient's current data:
+        {data_json}
+        
+        Based on the information provided, identify what CRITICAL medical information is missing that would be important for the general practitioner. Focus on:
+
+        1. Missing medication details:
+           - Missing doses for any mentioned medications
+           - Missing frequency/timing of medication intake
+           - Duration of current medication usage
+        
+        2. Vaccination status:
+           - Missing information about relevant vaccinations based on symptoms or age
+           - Missing information about recent vaccinations
+        
+        3. Allergies:
+           - Any missing information about medication allergies
+           - Any missing information about food allergies that could be relevant
+           - Any missing information about environmental allergies
+        
+        4. Medical history:
+           - Missing information about chronic conditions
+           - Missing information about previous surgeries or hospitalizations
+           - Family history of relevant conditions
+        
+        5. Current symptoms details:
+           - Duration of symptoms
+           - Severity of symptoms
+           - Factors that worsen or improve symptoms
+        
+        Return ONLY a JSON array of specific missing information items to ask the patient about.
+        Format:
+        {{
+          "missing_data": [
+            "specific item 1",
+            "specific item 2",
+            ...
+          ]
+        }}
+        
+        Be specific with each item (e.g., "Dosage for medication X" rather than just "medication details").
+        Limit to 3-5 most important items based on medical priority.
+        If no crucial information is missing, return an empty array.
+        
+        IMPORTANT: Return ONLY the JSON object, with no additional text.
+        """
+        
+        try:
+            response = self.genai_client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config={"temperature": 0.1}
+            )
+            
+            # Clean the response text
+            clean_response = response.text.strip()
+            
+            # Handle markdown code blocks
+            if "```" in clean_response:
+                # Extract between code blocks
+                start_idx = clean_response.find("```") + 3
+                # Skip any language identifier like "json"
+                if clean_response[start_idx:start_idx+4].strip().lower() == "json":
+                    start_idx = clean_response.find("\n", start_idx) + 1
+                else:
+                    # Find the actual JSON start
+                    json_start = clean_response.find("{", start_idx)
+                    if json_start > 0:
+                        start_idx = json_start
+                
+                # Find the end of the code block
+                end_idx = clean_response.rfind("```")
+                
+                if start_idx > 0 and end_idx > start_idx:
+                    clean_response = clean_response[start_idx:end_idx].strip()
+            
+            try:
+                # Try to parse directly
+                extracted_info = json.loads(clean_response)
+                missing_data = extracted_info.get("missing_data", [])
+            except json.JSONDecodeError:
+                # If that fails, try to extract just the JSON part
+                json_start = clean_response.find("{")
+                json_end = clean_response.rfind("}") + 1
+                if json_start >= 0 and json_end > json_start:
+                    json_text = clean_response[json_start:json_end]
+                    extracted_info = json.loads(json_text)
+                    missing_data = extracted_info.get("missing_data", [])
+                else:
+                    # If we can't find valid JSON, return empty list
+                    return []
+            
+            return missing_data
+            
+        except Exception as e:
+            print(f"Error analyzing for missing data: {str(e)}")
+            return []
+    
+    def _generate_missing_data_question(self, item: str, state: OnboardingState) -> str:
+        """
+        Generate a question to ask the patient about a specific missing data item.
+        """
+        # Get symptoms info for context
+        symptoms_description = state.symptoms_info.get("description", "No symptoms described")
+        symptoms_list = state.symptoms_info.get("extracted_symptoms", [])
+        symptoms_context = f"Based on your symptoms ({', '.join(symptoms_list) if symptoms_list else symptoms_description})"
+        
+        prompt = f"""
+        You are Shelly, a medical assistant helping a patient prepare for their general practice appointment.
+        
+        Patient's main concern: {symptoms_description}
+        
+        The patient needs to provide information about: "{item}"
+        
+        Generate a direct, professional question without any greetings like "hi" or "hello" that:
+        1. Gets straight to the point about the specific missing information
+        2. Explains briefly why this information is important for their doctor appointment
+        3. Provides any helpful medical context if relevant
+        4. Keeps the tone professional but warm
+        
+        Examples of good questions:
+        - For medication dosage: "What is the dosage amount for your [medication]? This helps your doctor understand your current treatment."
+        - For vaccination: "Have you received any [specific] vaccines in the past year? This information completes your preventive care record."
+        - For allergies: "Do you have any known allergies to medications, foods, or environmental factors? This ensures your safety during treatment."
+        
+        IMPORTANT:
+        - DO NOT start with greetings like "Hi", "Hello", or "Good day"
+        - Make the question direct and concise (1-3 sentences maximum)
+        - No small talk or unnecessary preamble
+        - Focus solely on gathering the specific medical information
+        
+        IMPORTANT: Do not include any quotation marks in your response.
+        """
+        
+        try:
+            response = self.genai_client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config={"temperature": 0.7}
+            )
+            
+            # Remove any quotation marks from the response
+            cleaned_response = response.text.strip().replace('"', '').replace("'", "")
+            
+            # Ensure it ends with a clear request to continue or skip
+            if "skip" not in cleaned_response.lower():
+                cleaned_response += " You can type 'skip' if you don't have this information right now."
+            
+            return cleaned_response
+        except Exception as e:
+            print(f"Error generating missing data question: {str(e)}")
+            return f"What information can you provide about {item}? This will help your doctor provide better care. You can type 'skip' if you don't have this information."
+    
+    def _generate_missing_data_summary(self, responses: Dict[str, str]) -> str:
+        """
+        Generate a summary of the missing data responses to include in the final report.
+        """
+        # Convert responses to JSON-friendly format
+        responses_text = "\n".join([f"- {item}: {response}" for item, response in responses.items()])
+        
+        prompt = f"""
+        You are a medical assistant summarizing patient information for a general practitioner.
+        
+        The patient has provided the following responses to questions about missing information:
+        
+        {responses_text}
+        
+        Create a concise, structured clinical summary of this information in a way that would be helpful for a doctor reviewing the patient's file.
+        
+        Your summary should:
+        1. Organize the information by category (medications, allergies, vaccinations, medical history, etc.)
+        2. Highlight the most medically significant information first
+        3. Note any items where the patient could not provide information
+        4. Include any follow-up recommendations where appropriate
+        
+        For example:
+        
+        MEDICATION DETAILS:
+        - Patient takes Lisinopril 10mg once daily for hypertension
+        - Unable to provide dosage for Metformin; patient advised to bring medication to appointment
+        
+        ALLERGIES:
+        - Reports penicillin allergy with skin rash reaction
+        - No known food allergies
+        
+        FOLLOW-UP NEEDED:
+        - Patient needs vaccination records from previous provider
+        
+        Keep the summary professional, medically relevant, and formatted for quick review by a busy clinician.
+        Exclude any information that doesn't add clinical value.
+        
+        IMPORTANT: Do not include any quotation marks in your response.
+        """
+        
+        try:
+            response = self.genai_client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config={"temperature": 0.5}
+            )
+            
+            # Remove any quotation marks from the response
+            cleaned_response = response.text.strip().replace('"', '').replace("'", "")
+            return cleaned_response
+        except Exception as e:
+            print(f"Error generating missing data summary: {str(e)}")
+            
+            # Fallback summary - more structured than before
+            summary = "ADDITIONAL PATIENT INFORMATION:\n"
+            categories = {
+                "medication": [],
+                "allergy": [],
+                "vaccination": [],
+                "medical history": [],
+                "symptoms": [],
+                "other": []
+            }
+            
+            # Sort responses into categories
+            for item, response in responses.items():
+                item_lower = item.lower()
+                if any(med_term in item_lower for med_term in ["medication", "dose", "drug", "prescription"]):
+                    categories["medication"].append(f"- {item}: {response}")
+                elif any(allergy_term in item_lower for allergy_term in ["allergy", "allergic", "reaction"]):
+                    categories["allergy"].append(f"- {item}: {response}")
+                elif any(vax_term in item_lower for vax_term in ["vaccine", "vaccination", "immunization"]):
+                    categories["vaccination"].append(f"- {item}: {response}")
+                elif any(history_term in item_lower for history_term in ["history", "condition", "surgery", "chronic"]):
+                    categories["medical history"].append(f"- {item}: {response}")
+                elif any(symptom_term in item_lower for symptom_term in ["symptom", "pain", "duration", "severity"]):
+                    categories["symptoms"].append(f"- {item}: {response}")
+                else:
+                    categories["other"].append(f"- {item}: {response}")
+            
+            # Build the summary
+            for category, items in categories.items():
+                if items:
+                    summary += f"\n{category.upper()}:\n"
+                    summary += "\n".join(items) + "\n"
+            
+            return summary

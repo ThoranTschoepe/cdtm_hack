@@ -56,15 +56,23 @@ class OnboardingState(BaseModel):
         "current_symptoms": "not_started",
         "insurance": "not_started",
         "medication": "not_started", 
-        "health_record": "not_started"
+        "health_record": "not_started",
+        "review_data": "not_started"
     })
     current_category: str = "current_symptoms"
     document_count: Dict[str, int] = Field(default_factory=lambda: {
         "current_symptoms": 0,
         "insurance": 0,
         "medication": 0, 
-        "health_record": 0
+        "health_record": 0,
+        "review_data": 0
     })
+    
+    # Fields for review data feature
+    missing_data_items: List[str] = Field(default_factory=list)
+    current_missing_data_item: Optional[str] = None
+    missing_data_responses: Dict[str, str] = Field(default_factory=dict)
+    missing_data_recommendations: Optional[str] = None
 
 class QuestionResponse(BaseModel):
     message: str
