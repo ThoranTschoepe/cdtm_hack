@@ -43,6 +43,7 @@ def transcribe_audio_file(upload_file):
             response_format="verbose_json"
         )
 
+    print(response.text)
 
     return response.text
 
